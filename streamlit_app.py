@@ -1,4 +1,20 @@
 # -*- coding: utf-8 -*-
+"""
+Quant Strategy Pro Dashboard
+- Multilingual UI: English / 한국어 / English + 한국어
+- Market Regime
+- Relative Ratio Analysis
+- Advanced Backtests with transaction cost
+- Rolling metrics
+- Monthly return heatmap
+- Portfolio construction / risk contribution
+- Strategy learning tabs
+
+Run:
+    pip install -r requirements.txt
+    streamlit run streamlit_app.py
+"""
+
 import numpy as np
 import pandas as pd
 import yfinance as yf
@@ -11,7 +27,7 @@ from datetime import datetime
 # Page Config
 # =========================================================
 st.set_page_config(
-    page_title="Quant Strategy Master Dashboard",
+    page_title="Quant Strategy Pro Dashboard",
     page_icon="📈",
     layout="wide"
 )
@@ -32,479 +48,296 @@ language_mode = st.sidebar.selectbox(
 # =========================================================
 TEXT = {
     "app_title": {
-        "en": "📈 Quant Strategy Master Dashboard",
-        "ko": "📈 퀀트 전략 마스터 대시보드",
+        "en": "📈 Quant Strategy Pro Dashboard",
+        "ko": "📈 퀀트 전략 프로 대시보드",
     },
     "app_caption": {
-        "en": "Learn practical quant methods with charts, rules, and simple backtests.",
-        "ko": "차트, 규칙, 간단한 백테스트를 통해 실전 퀀트 방법을 학습합니다.",
+        "en": "Professional research-style quant dashboard with regime, ratios, portfolio, and advanced backtests.",
+        "ko": "국면 분석, 비율 분석, 포트폴리오, 고급 백테스트를 포함한 전문가형 퀀트 대시보드입니다.",
     },
-    "sidebar_market_settings": {
-        "en": "Market Settings",
-        "ko": "시장 설정",
-    },
-    "main_asset": {
-        "en": "Main Asset",
-        "ko": "주요 자산",
-    },
-    "custom_ticker": {
-        "en": "Custom Ticker",
-        "ko": "사용자 지정 티커",
-    },
-    "comparison_assets": {
-        "en": "Comparison Assets",
-        "ko": "비교 자산",
-    },
-    "history_period": {
-        "en": "History Period",
-        "ko": "조회 기간",
-    },
-    "interval": {
-        "en": "Interval",
-        "ko": "간격",
-    },
-    "short_ma": {
-        "en": "Short MA",
-        "ko": "단기 이동평균",
-    },
-    "long_ma": {
-        "en": "Long MA",
-        "ko": "장기 이동평균",
-    },
-    "rsi_period": {
-        "en": "RSI Period",
-        "ko": "RSI 기간",
-    },
-    "vol_window": {
-        "en": "Vol Window",
-        "ko": "변동성 기간",
-    },
-    "mr_window": {
-        "en": "Mean Reversion Window",
-        "ko": "평균회귀 기간",
-    },
-    "mr_z": {
-        "en": "MR Z Threshold",
-        "ko": "평균회귀 Z 임계값",
-    },
-    "mom_lookback": {
-        "en": "Momentum Lookback",
-        "ko": "모멘텀 조회 기간",
-    },
-    "target_vol": {
-        "en": "Target Volatility",
-        "ko": "목표 변동성",
-    },
-    "initial_capital": {
-        "en": "Initial Capital",
-        "ko": "초기 자본",
-    },
-    "show_signals": {
-        "en": "Show Buy/Sell Signals",
-        "ko": "매수/매도 신호 표시",
-    },
+    "app_settings": {"en": "App Settings", "ko": "앱 설정"},
+    "market_settings": {"en": "Market Settings", "ko": "시장 설정"},
+    "backtest_settings": {"en": "Backtest Settings", "ko": "백테스트 설정"},
+    "language": {"en": "Language", "ko": "언어"},
+    "main_asset": {"en": "Main Asset", "ko": "주요 자산"},
+    "custom_ticker": {"en": "Custom Ticker", "ko": "사용자 지정 티커"},
+    "comparison_assets": {"en": "Comparison Assets", "ko": "비교 자산"},
+    "history_period": {"en": "History Period", "ko": "조회 기간"},
+    "interval": {"en": "Interval", "ko": "간격"},
+    "short_ma": {"en": "Short MA", "ko": "단기 이동평균"},
+    "long_ma": {"en": "Long MA", "ko": "장기 이동평균"},
+    "rsi_period": {"en": "RSI Period", "ko": "RSI 기간"},
+    "vol_window": {"en": "Vol Window", "ko": "변동성 기간"},
+    "mr_window": {"en": "Mean Reversion Window", "ko": "평균회귀 기간"},
+    "mr_z": {"en": "MR Z Threshold", "ko": "평균회귀 Z 임계값"},
+    "mom_lookback": {"en": "Momentum Lookback", "ko": "모멘텀 조회 기간"},
+    "target_vol": {"en": "Target Volatility", "ko": "목표 변동성"},
+    "initial_capital": {"en": "Initial Capital", "ko": "초기 자본"},
+    "trading_cost_bps": {"en": "Trading Cost (bps per turnover)", "ko": "거래 비용 (턴오버당 bps)"},
+    "show_signals": {"en": "Show Buy/Sell Signals", "ko": "매수/매도 신호 표시"},
+    "show_monthly_heatmap": {"en": "Show Monthly Heatmap", "ko": "월별 히트맵 표시"},
     "no_data": {
         "en": "No data loaded. Please check ticker or try again later.",
         "ko": "데이터를 불러오지 못했습니다. 티커를 확인하거나 나중에 다시 시도해 주세요.",
     },
-    "missing_column": {
-        "en": "Missing column",
-        "ko": "누락된 열",
-    },
-    "overview_tab": {
-        "en": "Overview",
-        "ko": "개요",
-    },
-    "trend_tab": {
-        "en": "1. Trend Following",
-        "ko": "1. 추세추종",
-    },
-    "meanrev_tab": {
-        "en": "2. Mean Reversion",
-        "ko": "2. 평균회귀",
-    },
-    "momentum_tab": {
-        "en": "3. Momentum",
-        "ko": "3. 모멘텀",
-    },
-    "relmom_tab": {
-        "en": "4. Relative Momentum",
-        "ko": "4. 상대 모멘텀",
-    },
-    "voltarget_tab": {
-        "en": "5. Volatility Targeting",
-        "ko": "5. 변동성 타게팅",
-    },
-    "riskparity_tab": {
-        "en": "6. Risk Parity",
-        "ko": "6. 리스크 패리티",
-    },
-    "drawdown_tab": {
-        "en": "7. Drawdown Buying",
-        "ko": "7. 낙폭 기반 매수",
-    },
-    "multifactor_tab": {
-        "en": "8. Multi-Factor",
-        "ko": "8. 멀티팩터",
-    },
-    "summary_tab": {
-        "en": "9. Strategy Summary",
-        "ko": "9. 전략 요약",
-    },
-    "last_price": {
-        "en": "Last Price",
-        "ko": "현재가",
-    },
-    "rsi": {
-        "en": "RSI",
-        "ko": "RSI",
-    },
-    "volatility": {
-        "en": "Volatility",
-        "ko": "변동성",
-    },
-    "drawdown": {
-        "en": "Drawdown",
-        "ko": "낙폭",
-    },
-    "from_ath": {
-        "en": "From ATH",
-        "ko": "ATH 대비",
-    },
-    "from_52w_high": {
-        "en": "From 52W High",
-        "ko": "52주 고점 대비",
-    },
-    "cagr": {
-        "en": "CAGR",
-        "ko": "연복리수익률",
-    },
-    "sharpe": {
-        "en": "Sharpe",
-        "ko": "샤프지수",
-    },
-    "sortino": {
-        "en": "Sortino",
-        "ko": "소르티노지수",
-    },
-    "max_drawdown": {
-        "en": "Max Drawdown",
-        "ko": "최대낙폭",
-    },
-    "na": {
-        "en": "N/A",
-        "ko": "N/A",
-    },
+    "missing_column": {"en": "Missing column", "ko": "누락된 열"},
+    "na": {"en": "N/A", "ko": "N/A"},
+    "overview_tab": {"en": "Overview", "ko": "개요"},
+    "regime_tab": {"en": "Market Regime", "ko": "시장 국면"},
+    "ratio_tab": {"en": "Relative Ratios", "ko": "상대 비율"},
+    "trend_tab": {"en": "Trend Following", "ko": "추세추종"},
+    "meanrev_tab": {"en": "Mean Reversion", "ko": "평균회귀"},
+    "momentum_tab": {"en": "Momentum", "ko": "모멘텀"},
+    "rotation_tab": {"en": "Asset Rotation", "ko": "자산 로테이션"},
+    "voltarget_tab": {"en": "Volatility Targeting", "ko": "변동성 타게팅"},
+    "riskparity_tab": {"en": "Risk Parity", "ko": "리스크 패리티"},
+    "portfolio_tab": {"en": "Portfolio Construction", "ko": "포트폴리오 구성"},
+    "drawdown_tab": {"en": "Drawdown Buying", "ko": "낙폭 기반 매수"},
+    "multifactor_tab": {"en": "Multi-Factor", "ko": "멀티팩터"},
+    "advanced_bt_tab": {"en": "Advanced Backtest", "ko": "고급 백테스트"},
+    "summary_tab": {"en": "Strategy Summary", "ko": "전략 요약"},
+    "last_price": {"en": "Last Price", "ko": "현재가"},
+    "rsi": {"en": "RSI", "ko": "RSI"},
+    "volatility": {"en": "Volatility", "ko": "변동성"},
+    "drawdown": {"en": "Drawdown", "ko": "낙폭"},
+    "from_ath": {"en": "From ATH", "ko": "ATH 대비"},
+    "from_52w_high": {"en": "From 52W High", "ko": "52주 고점 대비"},
+    "cagr": {"en": "CAGR", "ko": "연복리수익률"},
+    "sharpe": {"en": "Sharpe", "ko": "샤프지수"},
+    "sortino": {"en": "Sortino", "ko": "소르티노지수"},
+    "calmar": {"en": "Calmar", "ko": "칼마 지수"},
+    "max_drawdown": {"en": "Max Drawdown", "ko": "최대낙폭"},
+    "rolling_sharpe": {"en": "Rolling Sharpe", "ko": "롤링 샤프"},
+    "rolling_cagr": {"en": "Rolling CAGR", "ko": "롤링 CAGR"},
+    "overview_title": {"en": "Overview", "ko": "개요"},
     "overview_learn": {
         "en": (
-            "**What you learn in this tab**\n"
-            "- Trend, overbought/oversold condition, drawdown, and volatility\n"
-            "- The core state of the asset before making an investment decision"
+            "**What this tab does**\n"
+            "- Summarizes the current state of the asset\n"
+            "- Shows price, trend, RSI, and drawdown together\n"
+            "- Helps you decide whether the asset is strong, stretched, or correcting"
         ),
         "ko": (
-            "**이 탭에서 배우는 것**\n"
-            "- 추세, 과열/과매도 상태, 낙폭, 변동성\n"
-            "- 투자 판단 전에 확인해야 할 자산의 핵심 상태"
+            "**이 탭의 역할**\n"
+            "- 자산의 현재 상태를 요약합니다\n"
+            "- 가격, 추세, RSI, 낙폭을 함께 보여줍니다\n"
+            "- 자산이 강한지, 과열인지, 조정 중인지 판단하는 데 도움을 줍니다"
         ),
     },
-    "overview_price": {
-        "en": "Price",
-        "ko": "가격",
+    "market_regime_title": {"en": "Market Regime Engine", "ko": "시장 국면 엔진"},
+    "regime_desc": {
+        "en": (
+            "**Core idea**\n"
+            "A professional dashboard should classify the current market environment before applying any strategy.\n\n"
+            "**This panel combines**\n"
+            "- Trend status of QQQ / SPY / IWM / TLT / GLD\n"
+            "- Leadership ratios like IWM/QQQ and QQQ/SPY\n"
+            "- Defensive vs offensive behavior\n"
+            "- Breadth-style participation using cross-asset confirmation"
+        ),
+        "ko": (
+            "**핵심 개념**\n"
+            "전문가형 대시보드는 전략을 적용하기 전에 현재 시장 환경을 먼저 분류해야 합니다.\n\n"
+            "**이 패널은 다음을 결합합니다**\n"
+            "- QQQ / SPY / IWM / TLT / GLD 추세 상태\n"
+            "- IWM/QQQ, QQQ/SPY 같은 리더십 비율\n"
+            "- 방어적 자산과 공격적 자산의 상대 강도\n"
+            "- 여러 자산의 동시 확인을 통한 breadth 스타일 판정"
+        ),
     },
-    "overview_dd_short": {
-        "en": "DD",
-        "ko": "낙폭",
-    },
-    "trend_title": {
-        "en": "Trend Following",
-        "ko": "추세추종",
+    "regime_state": {"en": "Regime State", "ko": "국면 상태"},
+    "broad_risk_on": {"en": "Broad Risk-On", "ko": "광범위 위험선호"},
+    "narrow_risk_on": {"en": "Narrow Risk-On", "ko": "협소한 위험선호"},
+    "neutral_mixed": {"en": "Neutral / Mixed", "ko": "중립 / 혼조"},
+    "defensive": {"en": "Defensive", "ko": "방어적"},
+    "risk_off": {"en": "Risk-Off", "ko": "위험회피"},
+    "regime_score": {"en": "Regime Score", "ko": "국면 점수"},
+    "breadth_score": {"en": "Breadth Score", "ko": "브레드스 점수"},
+    "leadership_score": {"en": "Leadership Score", "ko": "리더십 점수"},
+    "defense_score": {"en": "Defense Score", "ko": "방어 점수"},
+    "asset_state_table": {"en": "Asset State Table", "ko": "자산 상태 표"},
+    "asset": {"en": "Asset", "ko": "자산"},
+    "close": {"en": "Close", "ko": "종가"},
+    "above_ma200": {"en": "Above MA200", "ko": "MA200 상단"},
+    "6m_momentum": {"en": "6M Momentum", "ko": "6개월 모멘텀"},
+    "drawdown_col": {"en": "Drawdown", "ko": "낙폭"},
+    "ratio_title": {"en": "Relative Ratio Analysis", "ko": "상대 비율 분석"},
+    "ratio_desc": {
+        "en": (
+            "**Core idea**\n"
+            "Relative ratios show leadership shifts better than absolute price charts.\n\n"
+            "**Useful ratios**\n"
+            "- QQQ/SPY: growth vs broad market\n"
+            "- IWM/QQQ: small caps vs large-cap growth\n"
+            "- IWM/SPY: small caps vs large caps\n"
+            "- SPY/TLT: equities vs long bonds\n"
+            "- GLD/TLT: inflation/hedge preference vs duration"
+        ),
+        "ko": (
+            "**핵심 개념**\n"
+            "상대 비율 차트는 절대 가격보다 리더십 변화를 더 잘 보여줍니다.\n\n"
+            "**유용한 비율**\n"
+            "- QQQ/SPY: 성장주 vs 전체 시장\n"
+            "- IWM/QQQ: 소형주 vs 대형 성장주\n"
+            "- IWM/SPY: 소형주 vs 대형주\n"
+            "- SPY/TLT: 주식 vs 장기채\n"
+            "- GLD/TLT: 인플레이션/헤지 선호 vs 듀레이션"
+        ),
     },
     "trend_desc": {
         "en": (
             "**Core idea**\n"
-            "Follow the market direction. A rising asset may continue to rise for some time.\n\n"
+            "Follow the prevailing market direction using moving averages.\n\n"
             "**Simple rule**\n"
-            "- Enter when Short MA > Long MA\n"
-            "- Exit when Short MA <= Long MA"
+            "- Long when short MA > long MA\n"
+            "- Flat when short MA <= long MA\n\n"
+            "**Professional note**\n"
+            "In practice, evaluate not only CAGR but also drawdown, turnover, and cost-adjusted performance."
         ),
         "ko": (
             "**핵심 개념**\n"
-            "시장 방향을 따라가는 전략입니다. 상승 중인 자산은 일정 기간 더 상승할 수 있다고 가정합니다.\n\n"
+            "이동평균으로 지배적인 시장 방향을 따라갑니다.\n\n"
             "**간단 룰**\n"
-            "- 진입: 단기 MA > 장기 MA\n"
-            "- 이탈: 단기 MA <= 장기 MA"
+            "- 단기 MA > 장기 MA 이면 보유\n"
+            "- 단기 MA <= 장기 MA 이면 현금\n\n"
+            "**전문가 메모**\n"
+            "실전에서는 CAGR뿐 아니라 낙폭, 턴오버, 비용 반영 후 성과도 함께 봐야 합니다."
         ),
-    },
-    "trend_cagr": {
-        "en": "Trend CAGR",
-        "ko": "추세추종 CAGR",
-    },
-    "trend_sharpe": {
-        "en": "Trend Sharpe",
-        "ko": "추세추종 Sharpe",
-    },
-    "trend_mdd": {
-        "en": "Trend MDD",
-        "ko": "추세추종 MDD",
-    },
-    "price_and_ma_signals": {
-        "en": "Price and MA Signals",
-        "ko": "가격과 이동평균 신호",
-    },
-    "equity_curve": {
-        "en": "Equity Curve",
-        "ko": "자산곡선",
-    },
-    "buy_hold": {
-        "en": "Buy & Hold",
-        "ko": "매수 후 보유",
-    },
-    "trend_strategy": {
-        "en": "Trend Strategy",
-        "ko": "추세추종 전략",
-    },
-    "buy": {
-        "en": "Buy",
-        "ko": "매수",
-    },
-    "sell": {
-        "en": "Sell",
-        "ko": "매도",
-    },
-    "not_enough_data": {
-        "en": "Not enough data for this strategy.",
-        "ko": "이 전략을 실행하기에 데이터가 충분하지 않습니다.",
-    },
-    "meanrev_title": {
-        "en": "Mean Reversion",
-        "ko": "평균회귀",
     },
     "meanrev_desc": {
         "en": (
             "**Core idea**\n"
-            "If price moves too far below its average, it may revert back toward the mean.\n\n"
+            "When price deviates too far below its rolling mean, it may revert upward.\n\n"
             "**Simple rule**\n"
             "- Enter when Z-score < -threshold\n"
-            "- Exit when price recovers to the rolling mean"
+            "- Exit when price recovers to the rolling mean\n\n"
+            "**Professional note**\n"
+            "Mean reversion often works better in choppy markets and can struggle in strong downtrends."
         ),
         "ko": (
             "**핵심 개념**\n"
-            "가격이 평균보다 너무 멀리 아래로 이탈하면 다시 평균 쪽으로 되돌아올 수 있다는 가정입니다.\n\n"
+            "가격이 이동평균보다 과도하게 아래로 이탈하면 위로 되돌아올 수 있다고 가정합니다.\n\n"
             "**간단 룰**\n"
-            "- 진입: Z-score < -임계값\n"
-            "- 청산: 가격이 이동평균 수준으로 회복"
+            "- Z-score < -임계값이면 진입\n"
+            "- 가격이 이동평균으로 회복하면 청산\n\n"
+            "**전문가 메모**\n"
+            "평균회귀는 횡보장에 강할 수 있지만 강한 하락 추세에서는 약할 수 있습니다."
         ),
-    },
-    "mr_cagr": {
-        "en": "MR CAGR",
-        "ko": "평균회귀 CAGR",
-    },
-    "mr_sharpe": {
-        "en": "MR Sharpe",
-        "ko": "평균회귀 Sharpe",
-    },
-    "mr_mdd": {
-        "en": "MR MDD",
-        "ko": "평균회귀 MDD",
-    },
-    "price_vs_mean": {
-        "en": "Price vs Mean",
-        "ko": "가격 vs 평균",
-    },
-    "zscore": {
-        "en": "Z-Score",
-        "ko": "Z-점수",
-    },
-    "meanrev_strategy": {
-        "en": "Mean Reversion",
-        "ko": "평균회귀",
-    },
-    "exit": {
-        "en": "Exit",
-        "ko": "청산",
-    },
-    "momentum_title": {
-        "en": "Momentum",
-        "ko": "모멘텀",
     },
     "momentum_desc": {
         "en": (
             "**Core idea**\n"
-            "Assets that have been strong recently may continue to be strong.\n\n"
+            "Assets with positive recent returns often continue to outperform for some time.\n\n"
             "**Simple rule**\n"
-            "- Enter when lookback momentum > 0\n"
-            "- Exit when momentum <= 0"
+            "- Long when lookback momentum > 0\n"
+            "- Flat when momentum <= 0\n\n"
+            "**Professional note**\n"
+            "Momentum can be powerful but is vulnerable to sharp reversals."
         ),
         "ko": (
             "**핵심 개념**\n"
-            "최근 강했던 자산이 당분간 계속 강할 수 있다는 가정입니다.\n\n"
+            "최근 수익률이 좋았던 자산이 일정 기간 계속 outperform할 수 있다고 가정합니다.\n\n"
             "**간단 룰**\n"
-            "- 진입: 조회 기간 모멘텀 > 0\n"
-            "- 이탈: 모멘텀 <= 0"
+            "- 조회 기간 모멘텀 > 0이면 보유\n"
+            "- 모멘텀 <= 0이면 현금\n\n"
+            "**전문가 메모**\n"
+            "모멘텀은 강력할 수 있지만 급격한 반전에 취약합니다."
         ),
     },
-    "momentum_cagr": {
-        "en": "Momentum CAGR",
-        "ko": "모멘텀 CAGR",
-    },
-    "momentum_sharpe": {
-        "en": "Momentum Sharpe",
-        "ko": "모멘텀 Sharpe",
-    },
-    "momentum_mdd": {
-        "en": "Momentum MDD",
-        "ko": "모멘텀 MDD",
-    },
-    "price_and_momentum": {
-        "en": "Price and Momentum",
-        "ko": "가격과 모멘텀",
-    },
-    "momentum_strategy": {
-        "en": "Momentum Strategy",
-        "ko": "모멘텀 전략",
-    },
-    "relmom_title": {
-        "en": "Relative Momentum / Asset Rotation",
-        "ko": "상대 모멘텀 / 자산 로테이션",
-    },
-    "relmom_desc": {
+    "rotation_desc": {
         "en": (
             "**Core idea**\n"
-            "Rotate into the strongest asset among several candidates.\n"
-            "Example: hold only the top-performing asset among QQQ / SPY / TLT / GLD."
+            "Rotate into the strongest asset among several candidates.\n\n"
+            "**Simple rule**\n"
+            "- Each period, select the asset with the highest lookback momentum\n"
+            "- Hold only that leader in the next period\n\n"
+            "**Professional note**\n"
+            "Rotation is most useful when asset regimes diverge clearly."
         ),
         "ko": (
             "**핵심 개념**\n"
-            "여러 자산 중 가장 강한 자산으로 이동하는 전략입니다.\n"
-            "예: QQQ / SPY / TLT / GLD 중 가장 강한 자산만 보유"
+            "여러 자산 중 가장 강한 자산으로 이동합니다.\n\n"
+            "**간단 룰**\n"
+            "- 각 시점마다 조회 기간 모멘텀이 가장 높은 자산을 선택\n"
+            "- 다음 기간에는 그 자산만 보유\n\n"
+            "**전문가 메모**\n"
+            "자산 국면 차이가 뚜렷할 때 로테이션 전략의 효과가 더 잘 나타납니다."
         ),
-    },
-    "need_two_assets": {
-        "en": "Need at least 2 assets for relative momentum.",
-        "ko": "상대 모멘텀 전략에는 최소 2개 이상의 자산이 필요합니다.",
-    },
-    "normalized_performance": {
-        "en": "Normalized Performance",
-        "ko": "정규화 성과",
-    },
-    "rotation_cagr": {
-        "en": "Rotation CAGR",
-        "ko": "로테이션 CAGR",
-    },
-    "rotation_equity": {
-        "en": "Rotation Strategy Equity",
-        "ko": "로테이션 전략 자산곡선",
-    },
-    "recent_rotation_decisions": {
-        "en": "Recent Rotation Decisions",
-        "ko": "최근 로테이션 결정",
-    },
-    "selected_asset": {
-        "en": "Selected Asset",
-        "ko": "선택 자산",
-    },
-    "voltarget_title": {
-        "en": "Volatility Targeting",
-        "ko": "변동성 타게팅",
     },
     "voltarget_desc": {
         "en": (
             "**Core idea**\n"
-            "Adjust position size to keep portfolio volatility near a target level.\n\n"
+            "Scale exposure up or down to target a stable volatility level.\n\n"
             "**Simple rule**\n"
-            "- Reduce exposure when realized volatility rises\n"
-            "- Increase exposure when realized volatility falls"
+            "- Lower exposure when realized volatility rises\n"
+            "- Raise exposure when realized volatility falls\n\n"
+            "**Professional note**\n"
+            "Vol-targeting can smooth risk but may underperform in fast rallies after volatility spikes."
         ),
         "ko": (
             "**핵심 개념**\n"
-            "포트폴리오 변동성을 목표 수준에 맞추기 위해 비중을 조절하는 전략입니다.\n\n"
+            "안정적인 목표 변동성 수준을 유지하도록 비중을 조절합니다.\n\n"
             "**간단 룰**\n"
             "- 실현 변동성이 올라가면 비중 축소\n"
-            "- 실현 변동성이 내려가면 비중 확대"
+            "- 실현 변동성이 내려가면 비중 확대\n\n"
+            "**전문가 메모**\n"
+            "변동성 타게팅은 위험을 완화할 수 있지만 급등 초반에는 덜 참여할 수 있습니다."
         ),
-    },
-    "voltarget_cagr": {
-        "en": "Vol Target CAGR",
-        "ko": "변동성 타게팅 CAGR",
-    },
-    "voltarget_sharpe": {
-        "en": "Vol Target Sharpe",
-        "ko": "변동성 타게팅 Sharpe",
-    },
-    "voltarget_mdd": {
-        "en": "Vol Target MDD",
-        "ko": "변동성 타게팅 MDD",
-    },
-    "realized_vol_and_leverage": {
-        "en": "Realized Vol and Leverage",
-        "ko": "실현 변동성과 레버리지",
-    },
-    "vol_target": {
-        "en": "Vol Target",
-        "ko": "변동성 타게팅",
-    },
-    "riskparity_title": {
-        "en": "Risk Parity",
-        "ko": "리스크 패리티",
     },
     "riskparity_desc": {
         "en": (
             "**Core idea**\n"
-            "Allocate based on risk contribution rather than capital amount.\n"
-            "Higher-volatility assets get smaller weights, and lower-volatility assets get larger weights."
+            "Allocate capital based on risk contribution, not nominal capital.\n\n"
+            "**Simple rule**\n"
+            "- Estimate recent volatility for each asset\n"
+            "- Assign larger weights to lower-volatility assets\n\n"
+            "**Professional note**\n"
+            "Risk parity usually needs multiple uncorrelated assets to work well."
         ),
         "ko": (
             "**핵심 개념**\n"
-            "금액이 아니라 위험 기여도 기준으로 자산을 배분하는 방식입니다.\n"
-            "변동성이 큰 자산 비중은 줄이고, 작은 자산 비중은 늘립니다."
+            "명목 금액이 아니라 위험 기여도 기준으로 자산을 배분합니다.\n\n"
+            "**간단 룰**\n"
+            "- 각 자산의 최근 변동성을 추정\n"
+            "- 변동성이 낮은 자산에 더 큰 비중 부여\n\n"
+            "**전문가 메모**\n"
+            "리스크 패리티는 상관관계가 낮은 여러 자산이 있을 때 효과가 더 좋습니다."
         ),
     },
-    "need_multiple_assets": {
-        "en": "Need multiple assets for risk parity.",
-        "ko": "리스크 패리티에는 여러 자산이 필요합니다.",
-    },
-    "rp_cagr": {
-        "en": "Risk Parity CAGR",
-        "ko": "리스크 패리티 CAGR",
-    },
-    "rp_sharpe": {
-        "en": "Risk Parity Sharpe",
-        "ko": "리스크 패리티 Sharpe",
-    },
-    "rp_mdd": {
-        "en": "Risk Parity MDD",
-        "ko": "리스크 패리티 MDD",
-    },
-    "risk_parity_weights": {
-        "en": "Risk Parity Weights",
-        "ko": "리스크 패리티 비중",
-    },
-    "equal_weight": {
-        "en": "Equal Weight",
-        "ko": "동일가중",
-    },
-    "risk_parity": {
-        "en": "Risk Parity",
-        "ko": "리스크 패리티",
-    },
-    "drawdown_title": {
-        "en": "Drawdown Buying Guide",
-        "ko": "낙폭 기반 매수 가이드",
+    "portfolio_desc": {
+        "en": (
+            "**Core idea**\n"
+            "Professional dashboards should translate signals into weights, risk budgets, and current allocation decisions.\n\n"
+            "**This tab shows**\n"
+            "- Signal by asset\n"
+            "- Suggested risk-scaled weights\n"
+            "- Risk contribution estimate\n"
+            "- Current target portfolio"
+        ),
+        "ko": (
+            "**핵심 개념**\n"
+            "전문가형 대시보드는 신호를 실제 비중, 위험 예산, 현재 배분 결정으로 연결해야 합니다.\n\n"
+            "**이 탭은 다음을 보여줍니다**\n"
+            "- 자산별 신호\n"
+            "- 위험 조정 비중 제안\n"
+            "- 위험 기여도 추정\n"
+            "- 현재 목표 포트폴리오"
+        ),
     },
     "drawdown_desc": {
         "en": (
             "**Core idea**\n"
-            "Buy in phases based on how far price has fallen from its previous high.\n\n"
+            "Use drawdown zones to phase entries instead of buying all at once.\n\n"
             "**Example**\n"
-            "- 0% ~ -5%: watch\n"
-            "- -5% ~ -10%: first buy\n"
-            "- -10% ~ -15%: second buy\n"
-            "- -15% ~ -20%: third buy\n"
-            "- below -20%: high risk / high opportunity"
+            "- 0% to -5%: watch\n"
+            "- -5% to -10%: first buy\n"
+            "- -10% to -15%: second buy\n"
+            "- -15% to -20%: third buy\n"
+            "- Below -20%: high risk / high opportunity"
         ),
         "ko": (
             "**핵심 개념**\n"
-            "이전 고점 대비 하락 폭에 따라 분할 매수하는 규칙입니다.\n\n"
+            "한 번에 매수하지 않고 낙폭 구간에 따라 분할 진입합니다.\n\n"
             "**예시**\n"
             "- 0% ~ -5%: 관찰\n"
             "- -5% ~ -10%: 1차 매수\n"
@@ -513,103 +346,19 @@ TEXT = {
             "- -20% 이하: 고위험 / 고기회"
         ),
     },
-    "zone": {
-        "en": "Zone",
-        "ko": "구간",
-    },
-    "meaning": {
-        "en": "Meaning",
-        "ko": "의미",
-    },
-    "action": {
-        "en": "Action",
-        "ko": "행동",
-    },
-    "near_highs": {
-        "en": "Near highs",
-        "ko": "고점 부근",
-    },
-    "watch_small_entry": {
-        "en": "Watch / small entry",
-        "ko": "관찰 / 소액 진입",
-    },
-    "normal_pullback": {
-        "en": "Normal pullback",
-        "ko": "일반 조정",
-    },
-    "first_buy": {
-        "en": "First phased buy",
-        "ko": "1차 분할매수",
-    },
-    "moderate_correction": {
-        "en": "Moderate correction",
-        "ko": "중간 수준 조정",
-    },
-    "second_buy": {
-        "en": "Second phased buy",
-        "ko": "2차 분할매수",
-    },
-    "deep_correction": {
-        "en": "Deep correction",
-        "ko": "깊은 조정",
-    },
-    "aggressive_buy": {
-        "en": "Aggressive phased buy",
-        "ko": "공격적 분할매수",
-    },
-    "severe_drawdown": {
-        "en": "Severe drawdown",
-        "ko": "심한 낙폭",
-    },
-    "opp_with_caution": {
-        "en": "Opportunity with caution",
-        "ko": "주의가 필요한 기회",
-    },
-    "current_state_near_highs": {
-        "en": "Current state: Near highs",
-        "ko": "현재 상태: 고점 부근",
-    },
-    "current_state_normal_pullback": {
-        "en": "Current state: Normal pullback",
-        "ko": "현재 상태: 일반 조정",
-    },
-    "current_state_moderate": {
-        "en": "Current state: Moderate correction",
-        "ko": "현재 상태: 중간 수준 조정",
-    },
-    "current_state_deep": {
-        "en": "Current state: Deep correction",
-        "ko": "현재 상태: 깊은 조정",
-    },
-    "current_state_severe": {
-        "en": "Current state: Severe drawdown",
-        "ko": "현재 상태: 심한 낙폭",
-    },
-    "price_and_ath": {
-        "en": "Price and ATH",
-        "ko": "가격과 ATH",
-    },
-    "drawdown_zones": {
-        "en": "Drawdown Zones",
-        "ko": "낙폭 구간",
-    },
-    "multifactor_title": {
-        "en": "Multi-Factor Score",
-        "ko": "멀티팩터 점수",
-    },
     "multifactor_desc": {
         "en": (
             "**Core idea**\n"
-            "Combine multiple signals instead of relying on only one factor.\n\n"
+            "Combine multiple signals instead of relying on one factor alone.\n\n"
             "**Factors used here**\n"
             "- Momentum\n"
-            "- Low Volatility\n"
+            "- Low volatility\n"
             "- Trend\n"
-            "- Quality Proxy"
+            "- Quality proxy"
         ),
         "ko": (
             "**핵심 개념**\n"
-            "하나의 신호만 보지 않고 여러 요인을 결합해 점수화합니다.\n\n"
+            "하나의 요인에만 의존하지 않고 여러 신호를 결합합니다.\n\n"
             "**여기서 사용하는 요인**\n"
             "- 모멘텀\n"
             "- 저변동성\n"
@@ -617,80 +366,82 @@ TEXT = {
             "- 퀄리티 대용지표"
         ),
     },
-    "factor_score": {
-        "en": "Factor Score",
-        "ko": "팩터 점수",
-    },
-    "positive_momentum": {
-        "en": "Positive momentum",
-        "ko": "긍정적 모멘텀",
-    },
-    "weak_momentum": {
-        "en": "Weak momentum",
-        "ko": "약한 모멘텀",
-    },
-    "below_median_vol": {
-        "en": "Below-median volatility",
-        "ko": "중앙값 이하 변동성",
-    },
-    "above_median_vol": {
-        "en": "Above-median volatility",
-        "ko": "중앙값 이상 변동성",
-    },
-    "trend_confirmed": {
-        "en": "Trend confirmed",
-        "ko": "추세 확인",
-    },
-    "trend_not_confirmed": {
-        "en": "Trend not confirmed",
-        "ko": "추세 미확인",
-    },
-    "quality_strong": {
-        "en": "Quality proxy strong",
-        "ko": "퀄리티 대용지표 강함",
-    },
-    "quality_weak": {
-        "en": "Quality proxy weak",
-        "ko": "퀄리티 대용지표 약함",
-    },
-    "composite_factor_score": {
-        "en": "Composite Factor Score",
-        "ko": "종합 팩터 점수",
-    },
-    "summary_title": {
-        "en": "Strategy Summary",
-        "ko": "전략 요약",
-    },
-    "strategy": {
-        "en": "Strategy",
-        "ko": "전략",
-    },
-    "final_value": {
-        "en": "Final Value",
-        "ko": "최종 자산",
-    },
-    "equity_comparison": {
-        "en": "Equity Comparison Across Strategies",
-        "ko": "전략별 자산곡선 비교",
-    },
-    "summary_learn": {
+    "advanced_bt_desc": {
         "en": (
-            "**What you learn in this tab**\n"
-            "- The same asset can behave very differently under different strategies\n"
-            "- Look at MDD and Sharpe, not only CAGR\n"
-            "- In practice, combining strategies is often more useful than using just one"
+            "**Core idea**\n"
+            "A professional backtest should include costs, turnover, rolling metrics, and period breakdowns.\n\n"
+            "**This tab adds**\n"
+            "- Cost-adjusted strategy returns\n"
+            "- Turnover estimate\n"
+            "- Rolling Sharpe and rolling CAGR\n"
+            "- Monthly return heatmap"
         ),
         "ko": (
-            "**이 탭에서 배우는 것**\n"
-            "- 같은 자산이라도 전략에 따라 성과가 크게 달라질 수 있음\n"
-            "- CAGR뿐 아니라 MDD와 Sharpe도 함께 봐야 함\n"
-            "- 실전에서는 한 전략보다 여러 전략의 조합이 더 유용한 경우가 많음"
+            "**핵심 개념**\n"
+            "전문가형 백테스트는 비용, 턴오버, 롤링 지표, 기간별 분해를 포함해야 합니다.\n\n"
+            "**이 탭은 다음을 추가합니다**\n"
+            "- 비용 반영 후 전략 수익률\n"
+            "- 턴오버 추정\n"
+            "- 롤링 샤프와 롤링 CAGR\n"
+            "- 월별 수익률 히트맵"
         ),
     },
-    "last_refresh": {
-        "en": "Last app refresh",
-        "ko": "마지막 앱 새로고침",
+    "summary_desc": {
+        "en": (
+            "**What this tab does**\n"
+            "- Compares all strategies on the same asset base\n"
+            "- Shows final value, CAGR, Sharpe, Calmar, MDD, exposure, and turnover\n"
+            "- Helps you judge not only return, but also the quality of the return"
+        ),
+        "ko": (
+            "**이 탭의 역할**\n"
+            "- 같은 자산 기반에서 여러 전략을 비교합니다\n"
+            "- 최종 자산, CAGR, Sharpe, Calmar, MDD, 노출도, 턴오버를 보여줍니다\n"
+            "- 단순 수익률이 아니라 수익의 질까지 판단하도록 돕습니다"
+        ),
     },
+    "need_two_assets": {"en": "Need at least 2 assets.", "ko": "최소 2개 이상의 자산이 필요합니다."},
+    "not_enough_data": {"en": "Not enough data for this analysis.", "ko": "이 분석을 수행하기에 데이터가 충분하지 않습니다."},
+    "buy_hold": {"en": "Buy & Hold", "ko": "매수 후 보유"},
+    "trend_strategy": {"en": "Trend Strategy", "ko": "추세 전략"},
+    "meanrev_strategy": {"en": "Mean Reversion", "ko": "평균회귀"},
+    "momentum_strategy": {"en": "Momentum Strategy", "ko": "모멘텀 전략"},
+    "rotation_strategy": {"en": "Rotation Strategy", "ko": "로테이션 전략"},
+    "vol_target_strategy": {"en": "Vol Target Strategy", "ko": "변동성 타게팅 전략"},
+    "risk_parity_strategy": {"en": "Risk Parity", "ko": "리스크 패리티"},
+    "equal_weight_strategy": {"en": "Equal Weight", "ko": "동일가중"},
+    "price": {"en": "Price", "ko": "가격"},
+    "equity_curve": {"en": "Equity Curve", "ko": "자산곡선"},
+    "buy": {"en": "Buy", "ko": "매수"},
+    "sell": {"en": "Sell", "ko": "매도"},
+    "exit": {"en": "Exit", "ko": "청산"},
+    "signal": {"en": "Signal", "ko": "신호"},
+    "position": {"en": "Position", "ko": "포지션"},
+    "turnover": {"en": "Turnover", "ko": "턴오버"},
+    "exposure": {"en": "Exposure", "ko": "노출도"},
+    "final_value": {"en": "Final Value", "ko": "최종 자산"},
+    "strategy": {"en": "Strategy", "ko": "전략"},
+    "recent_rotation_decisions": {"en": "Recent Rotation Decisions", "ko": "최근 로테이션 결정"},
+    "selected_asset": {"en": "Selected Asset", "ko": "선택 자산"},
+    "factor_score": {"en": "Factor Score", "ko": "팩터 점수"},
+    "positive_momentum": {"en": "Positive momentum", "ko": "긍정적 모멘텀"},
+    "weak_momentum": {"en": "Weak momentum", "ko": "약한 모멘텀"},
+    "below_median_vol": {"en": "Below-median volatility", "ko": "중앙값 이하 변동성"},
+    "above_median_vol": {"en": "Above-median volatility", "ko": "중앙값 이상 변동성"},
+    "trend_confirmed": {"en": "Trend confirmed", "ko": "추세 확인"},
+    "trend_not_confirmed": {"en": "Trend not confirmed", "ko": "추세 미확인"},
+    "quality_strong": {"en": "Quality proxy strong", "ko": "퀄리티 대용지표 강함"},
+    "quality_weak": {"en": "Quality proxy weak", "ko": "퀄리티 대용지표 약함"},
+    "composite_factor_score": {"en": "Composite Factor Score", "ko": "종합 팩터 점수"},
+    "current_target_weights": {"en": "Current Target Weights", "ko": "현재 목표 비중"},
+    "risk_contribution": {"en": "Risk Contribution", "ko": "위험 기여도"},
+    "signal_by_asset": {"en": "Signal by Asset", "ko": "자산별 신호"},
+    "monthly_heatmap": {"en": "Monthly Return Heatmap", "ko": "월별 수익률 히트맵"},
+    "year": {"en": "Year", "ko": "연도"},
+    "underwater_chart": {"en": "Underwater Chart", "ko": "언더워터 차트"},
+    "cost_adjusted": {"en": "Cost-Adjusted", "ko": "비용 반영"},
+    "raw": {"en": "Raw", "ko": "원시"},
+    "last_refresh": {"en": "Last app refresh", "ko": "마지막 앱 새로고침"},
 }
 
 # =========================================================
@@ -720,6 +471,19 @@ def tr_tab(key: str) -> str:
     else:
         return f"{en} / {ko}"
 
+def fmt_metric(value, kind="float"):
+    if pd.isna(value):
+        return tr("na")
+    if kind == "price":
+        return f"{value:,.2f}"
+    if kind == "pct":
+        return f"{value:.2%}"
+    if kind == "ratio":
+        return f"{value:.2f}"
+    if kind == "int":
+        return f"{value:,.0f}"
+    return f"{value}"
+
 # =========================================================
 # Title
 # =========================================================
@@ -727,17 +491,17 @@ st.title(tr("app_title"))
 st.caption(tr("app_caption"))
 
 # =========================================================
-# Sidebar - Market Settings
+# Sidebar
 # =========================================================
 st.sidebar.markdown("---")
-st.sidebar.header(tr("sidebar_market_settings"))
+st.sidebar.header(tr("market_settings"))
 
 preset_universe = {
     "QQQ": "QQQ",
     "SPY": "SPY",
+    "IWM": "IWM",
     "TLT": "TLT",
     "GLD": "GLD",
-    "IWM": "IWM",
     "Custom": None
 }
 
@@ -754,8 +518,8 @@ else:
 
 comparison_assets = st.sidebar.multiselect(
     tr("comparison_assets"),
-    ["QQQ", "SPY", "TLT", "GLD", "IWM"],
-    default=["QQQ", "SPY", "TLT", "GLD"]
+    ["QQQ", "SPY", "IWM", "TLT", "GLD"],
+    default=["QQQ", "SPY", "IWM", "TLT", "GLD"]
 )
 
 period = st.sidebar.selectbox(
@@ -779,6 +543,9 @@ mr_z = st.sidebar.slider(tr("mr_z"), 0.5, 3.0, 1.5, 0.1)
 mom_lookback = st.sidebar.slider(tr("mom_lookback"), 20, 252, 126, 5)
 target_vol = st.sidebar.slider(tr("target_vol"), 0.05, 0.30, 0.12, 0.01)
 
+st.sidebar.markdown("---")
+st.sidebar.header(tr("backtest_settings"))
+
 initial_capital = st.sidebar.number_input(
     tr("initial_capital"),
     min_value=1000,
@@ -787,22 +554,20 @@ initial_capital = st.sidebar.number_input(
     step=1000
 )
 
+trading_cost_bps = st.sidebar.slider(
+    tr("trading_cost_bps"),
+    min_value=0,
+    max_value=100,
+    value=10,
+    step=1
+)
+
 show_signals = st.sidebar.checkbox(tr("show_signals"), value=True)
+show_monthly_heatmap = st.sidebar.checkbox(tr("show_monthly_heatmap"), value=True)
 
 # =========================================================
 # Helper Functions
 # =========================================================
-def fmt_metric(value, kind="float"):
-    if pd.isna(value):
-        return tr("na")
-    if kind == "price":
-        return f"{value:,.2f}"
-    if kind == "pct":
-        return f"{value:.2%}"
-    if kind == "ratio":
-        return f"{value:.2f}"
-    return f"{value}"
-
 def get_annualization_factor(interval_value: str) -> int:
     if interval_value == "1d":
         return 252
@@ -813,6 +578,15 @@ def get_annualization_factor(interval_value: str) -> int:
     return 252
 
 def get_high_window(interval_value: str) -> int:
+    if interval_value == "1d":
+        return 252
+    elif interval_value == "1wk":
+        return 52
+    elif interval_value == "1mo":
+        return 12
+    return 252
+
+def get_rolling_window_1y(interval_value: str) -> int:
     if interval_value == "1d":
         return 252
     elif interval_value == "1wk":
@@ -850,8 +624,7 @@ def load_close_data(tickers: list, period_value: str, interval_value: str) -> pd
             frames.append(d[["Close"]].rename(columns={"Close": t}))
     if not frames:
         return pd.DataFrame()
-    out = pd.concat(frames, axis=1).dropna(how="all")
-    return out
+    return pd.concat(frames, axis=1).dropna(how="all")
 
 def calc_rsi(series: pd.Series, period_value: int = 14) -> pd.Series:
     delta = series.diff()
@@ -881,7 +654,11 @@ def calc_cagr(series: pd.Series, annual_factor: int) -> float:
     years = len(series) / annual_factor
     if years <= 0:
         return np.nan
-    return (series.iloc[-1] / series.iloc[0]) ** (1 / years) - 1
+    start = series.iloc[0]
+    end = series.iloc[-1]
+    if start <= 0:
+        return np.nan
+    return (end / start) ** (1 / years) - 1
 
 def calc_sharpe(returns: pd.Series, annual_factor: int) -> float:
     returns = returns.dropna()
@@ -896,15 +673,84 @@ def calc_sortino(returns: pd.Series, annual_factor: int) -> float:
         return np.nan
     return (returns.mean() / downside.std()) * np.sqrt(annual_factor)
 
+def calc_calmar(cagr_val: float, mdd_val: float) -> float:
+    if pd.isna(cagr_val) or pd.isna(mdd_val) or mdd_val == 0:
+        return np.nan
+    return cagr_val / abs(mdd_val)
+
 def equity_stats(equity: pd.Series, annual_factor: int):
     equity = equity.dropna()
     if len(equity) < 2:
-        return np.nan, np.nan, np.nan
+        return {
+            "CAGR": np.nan,
+            "Sharpe": np.nan,
+            "Sortino": np.nan,
+            "Calmar": np.nan,
+            "MDD": np.nan,
+            "Exposure": np.nan,
+            "Turnover": np.nan,
+        }
+
     rets = equity.pct_change().dropna()
     cagr_val = calc_cagr(equity, annual_factor)
     sharpe_val = calc_sharpe(rets, annual_factor)
+    sortino_val = calc_sortino(rets, annual_factor)
     _, mdd_val = calc_drawdown(equity)
-    return cagr_val, sharpe_val, mdd_val
+    calmar_val = calc_calmar(cagr_val, mdd_val)
+
+    return {
+        "CAGR": cagr_val,
+        "Sharpe": sharpe_val,
+        "Sortino": sortino_val,
+        "Calmar": calmar_val,
+        "MDD": mdd_val,
+    }
+
+def apply_costs(strategy_returns: pd.Series, position: pd.Series, cost_bps: float) -> tuple[pd.Series, pd.Series]:
+    turnover = position.fillna(0).diff().abs().fillna(position.fillna(0).abs())
+    cost_rate = cost_bps / 10000.0
+    costs = turnover * cost_rate
+    net_returns = strategy_returns.fillna(0) - costs
+    return net_returns, turnover
+
+def add_advanced_columns(bt: pd.DataFrame, annual_factor: int, initial_capital_value: float, cost_bps: float) -> pd.DataFrame:
+    bt = bt.copy()
+    if "Position" not in bt.columns:
+        bt["Position"] = 0.0
+    if "Strategy_Return" not in bt.columns:
+        bt["Strategy_Return"] = 0.0
+
+    net_returns, turnover = apply_costs(bt["Strategy_Return"], bt["Position"], cost_bps)
+    bt["Turnover"] = turnover
+    bt["Net_Strategy_Return"] = net_returns
+    bt["Equity_Net"] = initial_capital_value * (1 + bt["Net_Strategy_Return"]).cumprod()
+    bt["BuyHold_Equity"] = initial_capital_value * (1 + bt["Return"].fillna(0)).cumprod()
+    bt["Exposure"] = bt["Position"].fillna(0)
+
+    roll = get_rolling_window_1y(interval)
+    bh_rets = bt["BuyHold_Equity"].pct_change()
+    net_rets = bt["Equity_Net"].pct_change()
+
+    bt["Rolling_Sharpe_Net"] = net_rets.rolling(roll).apply(
+        lambda x: (np.mean(x) / np.std(x) * np.sqrt(annual_factor)) if np.std(x) != 0 else np.nan,
+        raw=True
+    )
+    bt["Rolling_Sharpe_BH"] = bh_rets.rolling(roll).apply(
+        lambda x: (np.mean(x) / np.std(x) * np.sqrt(annual_factor)) if np.std(x) != 0 else np.nan,
+        raw=True
+    )
+
+    bt["Rolling_CAGR_Net"] = bt["Equity_Net"] / bt["Equity_Net"].shift(roll)
+    bt["Rolling_CAGR_Net"] = bt["Rolling_CAGR_Net"] ** (annual_factor / roll) - 1
+
+    bt["Rolling_CAGR_BH"] = bt["BuyHold_Equity"] / bt["BuyHold_Equity"].shift(roll)
+    bt["Rolling_CAGR_BH"] = bt["Rolling_CAGR_BH"] ** (annual_factor / roll) - 1
+
+    dd_net, _ = calc_drawdown(bt["Equity_Net"])
+    dd_bh, _ = calc_drawdown(bt["BuyHold_Equity"])
+    bt["Underwater_Net"] = dd_net
+    bt["Underwater_BH"] = dd_bh
+    return bt
 
 def backtest_buy_hold(close: pd.Series, initial_capital_value: float) -> pd.Series:
     close = close.dropna()
@@ -912,7 +758,7 @@ def backtest_buy_hold(close: pd.Series, initial_capital_value: float) -> pd.Seri
         return pd.Series(dtype=float)
     return initial_capital_value * (close / close.iloc[0])
 
-def backtest_trend(close: pd.Series, ma_short_value: int, ma_long_value: int, initial_capital_value: float) -> pd.DataFrame:
+def backtest_trend(close: pd.Series, ma_short_value: int, ma_long_value: int, initial_capital_value: float, cost_bps: float, annual_factor: int) -> pd.DataFrame:
     close = close.dropna()
     if len(close) < ma_long_value:
         return pd.DataFrame()
@@ -925,12 +771,12 @@ def backtest_trend(close: pd.Series, ma_short_value: int, ma_long_value: int, in
     bt["Position"] = bt["Signal"].shift(1).fillna(0)
     bt["Return"] = bt["Close"].pct_change().fillna(0)
     bt["Strategy_Return"] = bt["Position"] * bt["Return"]
-    bt["Equity"] = initial_capital_value * (1 + bt["Strategy_Return"]).cumprod()
-    bt["BuyHold_Equity"] = initial_capital_value * (1 + bt["Return"]).cumprod()
     bt["Signal_Change"] = bt["Signal"].diff()
+    bt["Equity_Raw"] = initial_capital_value * (1 + bt["Strategy_Return"]).cumprod()
+    bt = add_advanced_columns(bt, annual_factor, initial_capital_value, cost_bps)
     return bt
 
-def backtest_mean_reversion(close: pd.Series, window_value: int, z_entry_value: float, initial_capital_value: float) -> pd.DataFrame:
+def backtest_mean_reversion(close: pd.Series, window_value: int, z_entry_value: float, initial_capital_value: float, cost_bps: float, annual_factor: int) -> pd.DataFrame:
     close = close.dropna()
     if len(close) < window_value + 5:
         return pd.DataFrame()
@@ -963,12 +809,12 @@ def backtest_mean_reversion(close: pd.Series, window_value: int, z_entry_value: 
     bt["Position"] = bt["Signal"].shift(1).fillna(0)
     bt["Return"] = bt["Close"].pct_change().fillna(0)
     bt["Strategy_Return"] = bt["Position"] * bt["Return"]
-    bt["Equity"] = initial_capital_value * (1 + bt["Strategy_Return"]).cumprod()
-    bt["BuyHold_Equity"] = initial_capital_value * (1 + bt["Return"]).cumprod()
     bt["Signal_Change"] = bt["Signal"].diff()
+    bt["Equity_Raw"] = initial_capital_value * (1 + bt["Strategy_Return"]).cumprod()
+    bt = add_advanced_columns(bt, annual_factor, initial_capital_value, cost_bps)
     return bt
 
-def backtest_momentum(close: pd.Series, lookback_value: int, initial_capital_value: float) -> pd.DataFrame:
+def backtest_momentum(close: pd.Series, lookback_value: int, initial_capital_value: float, cost_bps: float, annual_factor: int) -> pd.DataFrame:
     close = close.dropna()
     if len(close) < lookback_value + 5:
         return pd.DataFrame()
@@ -980,11 +826,12 @@ def backtest_momentum(close: pd.Series, lookback_value: int, initial_capital_val
     bt["Position"] = bt["Signal"].shift(1).fillna(0)
     bt["Return"] = bt["Close"].pct_change().fillna(0)
     bt["Strategy_Return"] = bt["Position"] * bt["Return"]
-    bt["Equity"] = initial_capital_value * (1 + bt["Strategy_Return"]).cumprod()
-    bt["BuyHold_Equity"] = initial_capital_value * (1 + bt["Return"]).cumprod()
+    bt["Signal_Change"] = bt["Signal"].diff()
+    bt["Equity_Raw"] = initial_capital_value * (1 + bt["Strategy_Return"]).cumprod()
+    bt = add_advanced_columns(bt, annual_factor, initial_capital_value, cost_bps)
     return bt
 
-def backtest_vol_target(close: pd.Series, vol_window_value: int, target_vol_value: float, annual_factor: int, initial_capital_value: float) -> pd.DataFrame:
+def backtest_vol_target(close: pd.Series, vol_window_value: int, target_vol_value: float, annual_factor: int, initial_capital_value: float, cost_bps: float) -> pd.DataFrame:
     close = close.dropna()
     if len(close) < vol_window_value + 5:
         return pd.DataFrame()
@@ -992,34 +839,45 @@ def backtest_vol_target(close: pd.Series, vol_window_value: int, target_vol_valu
     bt = pd.DataFrame(index=close.index)
     bt["Close"] = close
     bt["Return"] = close.pct_change().fillna(0)
-    realized_vol = bt["Return"].rolling(vol_window_value).std() * np.sqrt(annual_factor)
-    bt["Realized_Vol"] = realized_vol
-    bt["Leverage"] = (target_vol_value / bt["Realized_Vol"]).clip(upper=2.0)
-    bt["Leverage"] = bt["Leverage"].replace([np.inf, -np.inf], np.nan).fillna(0)
-    bt["Strategy_Return"] = bt["Leverage"].shift(1).fillna(0) * bt["Return"]
-    bt["Equity"] = initial_capital_value * (1 + bt["Strategy_Return"]).cumprod()
-    bt["BuyHold_Equity"] = initial_capital_value * (1 + bt["Return"]).cumprod()
+    bt["Realized_Vol"] = bt["Return"].rolling(vol_window_value).std() * np.sqrt(annual_factor)
+    bt["Signal"] = 1
+    bt["Position"] = (target_vol_value / bt["Realized_Vol"]).clip(upper=2.0).replace([np.inf, -np.inf], np.nan).fillna(0)
+    bt["Position"] = bt["Position"].shift(1).fillna(0)
+    bt["Strategy_Return"] = bt["Position"] * bt["Return"]
+    bt["Equity_Raw"] = initial_capital_value * (1 + bt["Strategy_Return"]).cumprod()
+    bt = add_advanced_columns(bt, annual_factor, initial_capital_value, cost_bps)
     return bt
 
-def build_risk_parity(close_df: pd.DataFrame, vol_window_value: int, annual_factor: int, initial_capital_value: float):
+def build_risk_parity(close_df: pd.DataFrame, vol_window_value: int, annual_factor: int, initial_capital_value: float, cost_bps: float):
     close_df = close_df.dropna(how="all")
     if close_df.empty or close_df.shape[1] < 2:
-        return pd.DataFrame(), pd.DataFrame()
+        return pd.DataFrame(), pd.DataFrame(), pd.Series(dtype=float)
 
     returns = close_df.pct_change().fillna(0)
     vol = returns.rolling(vol_window_value).std() * np.sqrt(annual_factor)
     inv_vol = 1 / vol.replace(0, np.nan)
     weights = inv_vol.div(inv_vol.sum(axis=1), axis=0).fillna(0)
 
-    rp_ret = (weights.shift(1).fillna(0) * returns).sum(axis=1)
-    eq_ret = returns.mean(axis=1)
+    shifted_weights = weights.shift(1).fillna(0)
+    rp_ret = (shifted_weights * returns).sum(axis=1)
+    ew_w = pd.DataFrame(1 / returns.shape[1], index=returns.index, columns=returns.columns)
+    eq_ret = (ew_w.shift(1).fillna(0) * returns).sum(axis=1)
+
+    turnover_rp = shifted_weights.diff().abs().sum(axis=1).fillna(shifted_weights.abs().sum(axis=1))
+    turnover_eq = ew_w.shift(1).fillna(0).diff().abs().sum(axis=1).fillna(ew_w.shift(1).fillna(0).abs().sum(axis=1))
+    cost_rate = cost_bps / 10000.0
+
+    rp_net = rp_ret - turnover_rp * cost_rate
+    eq_net = eq_ret - turnover_eq * cost_rate
 
     equity = pd.DataFrame(index=returns.index)
-    equity["Risk_Parity"] = initial_capital_value * (1 + rp_ret).cumprod()
-    equity["Equal_Weight"] = initial_capital_value * (1 + eq_ret).cumprod()
-    return weights, equity
+    equity["Risk_Parity_Raw"] = initial_capital_value * (1 + rp_ret).cumprod()
+    equity["Risk_Parity_Net"] = initial_capital_value * (1 + rp_net).cumprod()
+    equity["Equal_Weight_Raw"] = initial_capital_value * (1 + eq_ret).cumprod()
+    equity["Equal_Weight_Net"] = initial_capital_value * (1 + eq_net).cumprod()
+    return weights, equity, turnover_rp
 
-def build_rotation_strategy(close_df: pd.DataFrame, lookback_value: int, initial_capital_value: float):
+def build_rotation_strategy(close_df: pd.DataFrame, lookback_value: int, initial_capital_value: float, cost_bps: float):
     close_df = close_df.dropna(how="all")
     if close_df.empty or close_df.shape[1] < 2:
         return pd.DataFrame(), pd.DataFrame()
@@ -1029,15 +887,25 @@ def build_rotation_strategy(close_df: pd.DataFrame, lookback_value: int, initial
     returns = close_df.pct_change().fillna(0)
 
     rot_ret = pd.Series(0.0, index=close_df.index)
+    position_matrix = pd.DataFrame(0.0, index=close_df.index, columns=close_df.columns)
+
     for i in range(1, len(close_df)):
         chosen = leader.iloc[i - 1]
         if pd.notna(chosen):
             rot_ret.iloc[i] = returns.iloc[i][chosen]
+            position_matrix.iloc[i, position_matrix.columns.get_loc(chosen)] = 1.0
+
+    turnover = position_matrix.diff().abs().sum(axis=1).fillna(position_matrix.abs().sum(axis=1))
+    cost_rate = cost_bps / 10000.0
+    rot_net = rot_ret - turnover * cost_rate
 
     out = pd.DataFrame(index=close_df.index)
     out["Leader"] = leader
     out["Rotation_Return"] = rot_ret
-    out["Rotation_Equity"] = initial_capital_value * (1 + rot_ret).cumprod()
+    out["Rotation_Return_Net"] = rot_net
+    out["Turnover"] = turnover
+    out["Rotation_Equity_Raw"] = initial_capital_value * (1 + rot_ret).cumprod()
+    out["Rotation_Equity_Net"] = initial_capital_value * (1 + rot_net).cumprod()
     return momentum, out
 
 def latest_factor_score(df_in: pd.DataFrame, mom_lookback_value: int, vol_window_value: int):
@@ -1082,6 +950,161 @@ def latest_factor_score(df_in: pd.DataFrame, mom_lookback_value: int, vol_window
 
     return score, reasons, d
 
+def get_monthly_heatmap_from_equity(equity: pd.Series) -> pd.DataFrame:
+    equity = equity.dropna()
+    if len(equity) < 3:
+        return pd.DataFrame()
+
+    monthly = equity.resample("M").last().pct_change()
+    heat = monthly.to_frame("ret")
+    heat["Year"] = heat.index.year
+    heat["Month"] = heat.index.strftime("%b")
+    pivot = heat.pivot(index="Year", columns="Month", values="ret")
+    month_order = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    pivot = pivot.reindex(columns=month_order)
+    return pivot
+
+def normalize_series(series: pd.Series) -> pd.Series:
+    s = series.dropna()
+    if s.empty:
+        return series * np.nan
+    return 100 * series / s.iloc[0]
+
+def create_ratio_series(close_df: pd.DataFrame, num: str, den: str) -> pd.Series:
+    if num in close_df.columns and den in close_df.columns:
+        return close_df[num] / close_df[den]
+    return pd.Series(dtype=float)
+
+def regime_engine(close_df: pd.DataFrame, annual_factor: int):
+    needed = ["QQQ", "SPY", "IWM", "TLT", "GLD"]
+    available = [x for x in needed if x in close_df.columns]
+    if len(available) < 3:
+        return {
+            "state": tr("na"),
+            "regime_score": np.nan,
+            "breadth_score": np.nan,
+            "leadership_score": np.nan,
+            "defense_score": np.nan,
+            "table": pd.DataFrame()
+        }
+
+    rows = []
+    for col in available:
+        s = close_df[col].dropna()
+        if len(s) < 220:
+            continue
+        ma200 = s.rolling(200).mean().iloc[-1]
+        mom6 = s.iloc[-1] / s.shift(126).iloc[-1] - 1 if len(s) > 126 else np.nan
+        dd, _ = calc_drawdown(s)
+        rows.append({
+            tr("asset"): col,
+            tr("close"): s.iloc[-1],
+            tr("above_ma200"): bool(s.iloc[-1] > ma200) if pd.notna(ma200) else False,
+            tr("6m_momentum"): mom6,
+            tr("drawdown_col"): dd.iloc[-1]
+        })
+
+    table = pd.DataFrame(rows)
+    if table.empty:
+        return {
+            "state": tr("na"),
+            "regime_score": np.nan,
+            "breadth_score": np.nan,
+            "leadership_score": np.nan,
+            "defense_score": np.nan,
+            "table": table
+        }
+
+    breadth_score = int(table[tr("above_ma200")].sum())
+
+    leadership_score = 0
+    defense_score = 0
+
+    ratio_iwm_qqq = create_ratio_series(close_df, "IWM", "QQQ")
+    ratio_qqq_spy = create_ratio_series(close_df, "QQQ", "SPY")
+    ratio_spy_tlt = create_ratio_series(close_df, "SPY", "TLT")
+    ratio_gld_tlt = create_ratio_series(close_df, "GLD", "TLT")
+
+    def ratio_up(s):
+        s = s.dropna()
+        if len(s) < 60:
+            return False
+        ma50 = s.rolling(50).mean().iloc[-1]
+        return bool(s.iloc[-1] > ma50) if pd.notna(ma50) else False
+
+    if ratio_up(ratio_iwm_qqq):
+        leadership_score += 1
+    if ratio_up(ratio_qqq_spy):
+        leadership_score += 1
+    if ratio_up(ratio_spy_tlt):
+        leadership_score += 1
+    if ratio_up(ratio_gld_tlt):
+        defense_score += 1
+
+    regime_score = breadth_score + leadership_score - defense_score
+
+    if breadth_score >= 3 and leadership_score >= 2 and defense_score == 0:
+        state = tr("broad_risk_on")
+    elif breadth_score >= 2 and leadership_score >= 1:
+        state = tr("narrow_risk_on")
+    elif breadth_score <= 1 and defense_score >= 1:
+        state = tr("risk_off")
+    elif defense_score >= 1:
+        state = tr("defensive")
+    else:
+        state = tr("neutral_mixed")
+
+    return {
+        "state": state,
+        "regime_score": regime_score,
+        "breadth_score": breadth_score,
+        "leadership_score": leadership_score,
+        "defense_score": defense_score,
+        "table": table
+    }
+
+def build_portfolio_suggestion(close_df: pd.DataFrame, lookback_value: int, vol_window_value: int, annual_factor: int):
+    if close_df.empty or close_df.shape[1] < 2:
+        return pd.DataFrame(), pd.Series(dtype=float), pd.Series(dtype=float)
+
+    returns = close_df.pct_change()
+    vol = returns.rolling(vol_window_value).std() * np.sqrt(annual_factor)
+    latest_vol = vol.iloc[-1]
+    latest_mom = close_df.iloc[-1] / close_df.shift(lookback_value).iloc[-1] - 1
+
+    signal = (latest_mom > 0).astype(float)
+    inv_vol = 1 / latest_vol.replace(0, np.nan)
+    raw_weight = signal * inv_vol
+    if raw_weight.sum(skipna=True) > 0:
+        weights = raw_weight / raw_weight.sum()
+    else:
+        weights = pd.Series(0.0, index=close_df.columns)
+
+    corr = returns.dropna().corr()
+    latest_ret = returns.dropna()
+    if latest_ret.empty:
+        risk_contrib = pd.Series(0.0, index=close_df.columns)
+    else:
+        cov = latest_ret.cov() * annual_factor
+        w = weights.fillna(0).values.reshape(-1, 1)
+        port_var = float(w.T @ cov.values @ w) if len(cov) == len(weights) else np.nan
+        if pd.isna(port_var) or port_var <= 0:
+            risk_contrib = pd.Series(0.0, index=close_df.columns)
+        else:
+            marginal = cov.values @ w
+            contrib = (w * marginal)[:, 0] / port_var
+            risk_contrib = pd.Series(contrib, index=close_df.columns)
+
+    signal_df = pd.DataFrame({
+        tr("asset"): close_df.columns,
+        tr("signal"): signal.values,
+        tr("6m_momentum"): latest_mom.values,
+        tr("volatility"): latest_vol.values,
+        tr("current_target_weights"): weights.values,
+        tr("risk_contribution"): risk_contrib.reindex(close_df.columns).values
+    })
+    return signal_df, weights, risk_contrib
+
 # =========================================================
 # Data Load
 # =========================================================
@@ -1124,27 +1147,35 @@ if ticker not in compare_tickers:
 
 cmp_df = load_close_data(compare_tickers, period, interval)
 
+regime_assets = ["QQQ", "SPY", "IWM", "TLT", "GLD"]
+regime_close_df = load_close_data(regime_assets, period, interval)
+regime_result = regime_engine(regime_close_df, annual_factor)
+
 # =========================================================
 # Tabs
 # =========================================================
 tabs = st.tabs([
     tr_tab("overview_tab"),
+    tr_tab("regime_tab"),
+    tr_tab("ratio_tab"),
     tr_tab("trend_tab"),
     tr_tab("meanrev_tab"),
     tr_tab("momentum_tab"),
-    tr_tab("relmom_tab"),
+    tr_tab("rotation_tab"),
     tr_tab("voltarget_tab"),
     tr_tab("riskparity_tab"),
+    tr_tab("portfolio_tab"),
     tr_tab("drawdown_tab"),
     tr_tab("multifactor_tab"),
+    tr_tab("advanced_bt_tab"),
     tr_tab("summary_tab"),
 ])
 
 # =========================================================
-# 0. Overview
+# Overview
 # =========================================================
 with tabs[0]:
-    st.subheader(f"{ticker} - {tr('overview_tab')}")
+    st.subheader(f"{ticker} - {tr('overview_title')}")
 
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     c1.metric(tr("last_price"), fmt_metric(latest["Close"], "price"))
@@ -1157,18 +1188,20 @@ with tabs[0]:
     cagr_val = calc_cagr(df["Close"], annual_factor)
     sharpe_val = calc_sharpe(df["Return"], annual_factor)
     sortino_val = calc_sortino(df["Return"], annual_factor)
+    calmar_val = calc_calmar(cagr_val, mdd)
 
-    d1, d2, d3 = st.columns(3)
+    d1, d2, d3, d4 = st.columns(4)
     d1.metric(tr("cagr"), fmt_metric(cagr_val, "pct"))
     d2.metric(tr("sharpe"), fmt_metric(sharpe_val, "ratio"))
-    d3.metric(tr("max_drawdown"), fmt_metric(mdd, "pct"))
+    d3.metric(tr("sortino"), fmt_metric(sortino_val, "ratio"))
+    d4.metric(tr("calmar"), fmt_metric(calmar_val, "ratio"))
 
     st.markdown(tr("overview_learn"))
 
     fig = make_subplots(
         rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.05,
         row_heights=[0.5, 0.25, 0.25],
-        subplot_titles=(f"{ticker} {tr('overview_price')}", tr("rsi"), tr("drawdown"))
+        subplot_titles=(f"{ticker} {tr('price')}", tr("rsi"), tr("drawdown"))
     )
     fig.add_trace(go.Scatter(x=df.index, y=df["Close"], mode="lines", name="Close"), row=1, col=1)
     fig.add_trace(go.Scatter(x=df.index, y=df["MA_Short"], mode="lines", name=f"MA {ma_short}"), row=1, col=1)
@@ -1176,284 +1209,361 @@ with tabs[0]:
     fig.add_trace(go.Scatter(x=df.index, y=df["RSI"], mode="lines", name="RSI"), row=2, col=1)
     fig.add_hline(y=70, row=2, col=1, line_dash="dash")
     fig.add_hline(y=30, row=2, col=1, line_dash="dash")
-    fig.add_trace(go.Scatter(x=df.index, y=df["Drawdown"], mode="lines", fill="tozeroy", name="Drawdown"), row=3, col=1)
-    fig.update_layout(height=820, title=f"{ticker} {tr('overview_tab')}")
-    fig.update_yaxes(title_text=tr("overview_price"), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df.index, y=df["Drawdown"], mode="lines", fill="tozeroy", name=tr("drawdown")), row=3, col=1)
+    fig.update_layout(height=850, title=f"{ticker} {tr('overview_title')}")
+    fig.update_yaxes(title_text=tr("price"), row=1, col=1)
     fig.update_yaxes(title_text=tr("rsi"), range=[0, 100], row=2, col=1)
-    fig.update_yaxes(title_text=tr("overview_dd_short"), tickformat=".0%", row=3, col=1)
+    fig.update_yaxes(title_text=tr("drawdown"), tickformat=".0%", row=3, col=1)
     st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
-# 1. Trend Following
+# Market Regime
 # =========================================================
 with tabs[1]:
-    st.subheader(tr("trend_title"))
-    st.markdown(tr("trend_desc"))
+    st.subheader(tr("market_regime_title"))
+    st.markdown(tr("regime_desc"))
 
-    bt = backtest_trend(df["Close"], ma_short, ma_long, initial_capital)
-    if bt.empty:
+    a, b, c, d = st.columns(4)
+    a.metric(tr("regime_state"), regime_result["state"])
+    b.metric(tr("regime_score"), fmt_metric(regime_result["regime_score"], "ratio"))
+    c.metric(tr("breadth_score"), fmt_metric(regime_result["breadth_score"], "ratio"))
+    d.metric(tr("defense_score"), fmt_metric(regime_result["defense_score"], "ratio"))
+
+    if not regime_result["table"].empty:
+        table_disp = regime_result["table"].copy()
+        table_disp[tr("close")] = table_disp[tr("close")].map(lambda x: f"{x:,.2f}")
+        table_disp[tr("6m_momentum")] = table_disp[tr("6m_momentum")].map(lambda x: f"{x:.2%}" if pd.notna(x) else tr("na"))
+        table_disp[tr("drawdown_col")] = table_disp[tr("drawdown_col")].map(lambda x: f"{x:.2%}" if pd.notna(x) else tr("na"))
+        st.subheader(tr("asset_state_table"))
+        st.dataframe(table_disp, use_container_width=True)
+
+    if not regime_close_df.empty:
+        norm = regime_close_df.copy()
+        for col in norm.columns:
+            norm[col] = normalize_series(norm[col])
+        fig = go.Figure()
+        for col in norm.columns:
+            fig.add_trace(go.Scatter(x=norm.index, y=norm[col], mode="lines", name=col))
+        fig.update_layout(height=450, title=tr("asset_state_table"))
+        st.plotly_chart(fig, use_container_width=True)
+
+# =========================================================
+# Relative Ratios
+# =========================================================
+with tabs[2]:
+    st.subheader(tr("ratio_title"))
+    st.markdown(tr("ratio_desc"))
+
+    if regime_close_df.empty:
         st.warning(tr("not_enough_data"))
     else:
-        t_cagr, t_sharpe, t_mdd = equity_stats(bt["Equity"], annual_factor)
+        ratio_map = {
+            "QQQ / SPY": create_ratio_series(regime_close_df, "QQQ", "SPY"),
+            "IWM / QQQ": create_ratio_series(regime_close_df, "IWM", "QQQ"),
+            "IWM / SPY": create_ratio_series(regime_close_df, "IWM", "SPY"),
+            "SPY / TLT": create_ratio_series(regime_close_df, "SPY", "TLT"),
+            "GLD / TLT": create_ratio_series(regime_close_df, "GLD", "TLT"),
+        }
 
-        a, b, c = st.columns(3)
-        a.metric(tr("trend_cagr"), fmt_metric(t_cagr, "pct"))
-        b.metric(tr("trend_sharpe"), fmt_metric(t_sharpe, "ratio"))
-        c.metric(tr("trend_mdd"), fmt_metric(t_mdd, "pct"))
+        fig = make_subplots(
+            rows=5, cols=1, shared_xaxes=True, vertical_spacing=0.03,
+            subplot_titles=tuple(ratio_map.keys())
+        )
 
-        buy_points = bt[bt["Signal_Change"] == 1]
-        sell_points = bt[bt["Signal_Change"] == -1]
+        for i, (name, series) in enumerate(ratio_map.items(), start=1):
+            if not series.empty:
+                ma50 = series.rolling(50).mean()
+                fig.add_trace(go.Scatter(x=series.index, y=series, mode="lines", name=name), row=i, col=1)
+                fig.add_trace(go.Scatter(x=ma50.index, y=ma50, mode="lines", name=f"{name} MA50"), row=i, col=1)
+
+        fig.update_layout(height=1400, showlegend=False)
+        st.plotly_chart(fig, use_container_width=True)
+
+# =========================================================
+# Trend Following
+# =========================================================
+trend_bt = backtest_trend(df["Close"], ma_short, ma_long, initial_capital, trading_cost_bps, annual_factor)
+
+with tabs[3]:
+    st.subheader(tr("trend_tab"))
+    st.markdown(tr("trend_desc"))
+
+    if trend_bt.empty:
+        st.warning(tr("not_enough_data"))
+    else:
+        stats = equity_stats(trend_bt["Equity_Net"], annual_factor)
+        a, b, c, d = st.columns(4)
+        a.metric(tr("cagr"), fmt_metric(stats["CAGR"], "pct"))
+        b.metric(tr("sharpe"), fmt_metric(stats["Sharpe"], "ratio"))
+        c.metric(tr("max_drawdown"), fmt_metric(stats["MDD"], "pct"))
+        d.metric(tr("turnover"), fmt_metric(trend_bt["Turnover"].mean() * annual_factor, "ratio"))
+
+        buy_points = trend_bt[trend_bt["Signal_Change"] == 1]
+        sell_points = trend_bt[trend_bt["Signal_Change"] == -1]
 
         fig = make_subplots(
             rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
             row_heights=[0.55, 0.45],
-            subplot_titles=(tr("price_and_ma_signals"), tr("equity_curve"))
+            subplot_titles=(tr("price"), tr("equity_curve"))
         )
-        fig.add_trace(go.Scatter(x=bt.index, y=bt["Close"], mode="lines", name="Close"), row=1, col=1)
-        fig.add_trace(go.Scatter(x=bt.index, y=bt["MA_Short"], mode="lines", name=f"MA {ma_short}"), row=1, col=1)
-        fig.add_trace(go.Scatter(x=bt.index, y=bt["MA_Long"], mode="lines", name=f"MA {ma_long}"), row=1, col=1)
+        fig.add_trace(go.Scatter(x=trend_bt.index, y=trend_bt["Close"], mode="lines", name="Close"), row=1, col=1)
+        fig.add_trace(go.Scatter(x=trend_bt.index, y=trend_bt["MA_Short"], mode="lines", name=f"MA {ma_short}"), row=1, col=1)
+        fig.add_trace(go.Scatter(x=trend_bt.index, y=trend_bt["MA_Long"], mode="lines", name=f"MA {ma_long}"), row=1, col=1)
 
         if show_signals:
-            fig.add_trace(
-                go.Scatter(
-                    x=buy_points.index, y=buy_points["Close"], mode="markers", name=tr("buy"),
-                    marker=dict(symbol="triangle-up", size=11)
-                ),
-                row=1, col=1
-            )
-            fig.add_trace(
-                go.Scatter(
-                    x=sell_points.index, y=sell_points["Close"], mode="markers", name=tr("sell"),
-                    marker=dict(symbol="triangle-down", size=11)
-                ),
-                row=1, col=1
-            )
+            fig.add_trace(go.Scatter(x=buy_points.index, y=buy_points["Close"], mode="markers", name=tr("buy"),
+                                     marker=dict(symbol="triangle-up", size=10)), row=1, col=1)
+            fig.add_trace(go.Scatter(x=sell_points.index, y=sell_points["Close"], mode="markers", name=tr("sell"),
+                                     marker=dict(symbol="triangle-down", size=10)), row=1, col=1)
 
-        fig.add_trace(go.Scatter(x=bt.index, y=bt["BuyHold_Equity"], mode="lines", name=tr("buy_hold")), row=2, col=1)
-        fig.add_trace(go.Scatter(x=bt.index, y=bt["Equity"], mode="lines", name=tr("trend_strategy")), row=2, col=1)
-        fig.update_layout(height=840)
+        fig.add_trace(go.Scatter(x=trend_bt.index, y=trend_bt["BuyHold_Equity"], mode="lines", name=tr("buy_hold")), row=2, col=1)
+        fig.add_trace(go.Scatter(x=trend_bt.index, y=trend_bt["Equity_Net"], mode="lines", name=tr("cost_adjusted")), row=2, col=1)
+        fig.update_layout(height=850)
         st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
-# 2. Mean Reversion
+# Mean Reversion
 # =========================================================
-with tabs[2]:
-    st.subheader(tr("meanrev_title"))
+mr_bt = backtest_mean_reversion(df["Close"], mr_window, mr_z, initial_capital, trading_cost_bps, annual_factor)
+
+with tabs[4]:
+    st.subheader(tr("meanrev_tab"))
     st.markdown(tr("meanrev_desc"))
 
-    bt = backtest_mean_reversion(df["Close"], mr_window, mr_z, initial_capital)
-    if bt.empty:
+    if mr_bt.empty:
         st.warning(tr("not_enough_data"))
     else:
-        mr_cagr_val, mr_sharpe_val, mr_mdd_val = equity_stats(bt["Equity"], annual_factor)
-        a, b, c = st.columns(3)
-        a.metric(tr("mr_cagr"), fmt_metric(mr_cagr_val, "pct"))
-        b.metric(tr("mr_sharpe"), fmt_metric(mr_sharpe_val, "ratio"))
-        c.metric(tr("mr_mdd"), fmt_metric(mr_mdd_val, "pct"))
+        stats = equity_stats(mr_bt["Equity_Net"], annual_factor)
+        a, b, c, d = st.columns(4)
+        a.metric(tr("cagr"), fmt_metric(stats["CAGR"], "pct"))
+        b.metric(tr("sharpe"), fmt_metric(stats["Sharpe"], "ratio"))
+        c.metric(tr("max_drawdown"), fmt_metric(stats["MDD"], "pct"))
+        d.metric(tr("turnover"), fmt_metric(mr_bt["Turnover"].mean() * annual_factor, "ratio"))
 
-        buy_points = bt[bt["Signal_Change"] == 1]
-        sell_points = bt[bt["Signal_Change"] == -1]
+        buy_points = mr_bt[mr_bt["Signal_Change"] == 1]
+        sell_points = mr_bt[mr_bt["Signal_Change"] == -1]
 
         fig = make_subplots(
             rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.06,
             row_heights=[0.42, 0.23, 0.35],
-            subplot_titles=(tr("price_vs_mean"), tr("zscore"), tr("equity_curve"))
+            subplot_titles=(tr("price"), "Z-Score", tr("equity_curve"))
         )
-        fig.add_trace(go.Scatter(x=bt.index, y=bt["Close"], mode="lines", name="Close"), row=1, col=1)
-        fig.add_trace(go.Scatter(x=bt.index, y=bt["Mean"], mode="lines", name="Rolling Mean"), row=1, col=1)
+        fig.add_trace(go.Scatter(x=mr_bt.index, y=mr_bt["Close"], mode="lines", name="Close"), row=1, col=1)
+        fig.add_trace(go.Scatter(x=mr_bt.index, y=mr_bt["Mean"], mode="lines", name="Mean"), row=1, col=1)
 
         if show_signals:
-            fig.add_trace(
-                go.Scatter(
-                    x=buy_points.index, y=buy_points["Close"], mode="markers", name=tr("buy"),
-                    marker=dict(symbol="triangle-up", size=11)
-                ),
-                row=1, col=1
-            )
-            fig.add_trace(
-                go.Scatter(
-                    x=sell_points.index, y=sell_points["Close"], mode="markers", name=tr("exit"),
-                    marker=dict(symbol="triangle-down", size=11)
-                ),
-                row=1, col=1
-            )
+            fig.add_trace(go.Scatter(x=buy_points.index, y=buy_points["Close"], mode="markers", name=tr("buy"),
+                                     marker=dict(symbol="triangle-up", size=10)), row=1, col=1)
+            fig.add_trace(go.Scatter(x=sell_points.index, y=sell_points["Close"], mode="markers", name=tr("exit"),
+                                     marker=dict(symbol="triangle-down", size=10)), row=1, col=1)
 
-        fig.add_trace(go.Scatter(x=bt.index, y=bt["Z"], mode="lines", name=tr("zscore")), row=2, col=1)
+        fig.add_trace(go.Scatter(x=mr_bt.index, y=mr_bt["Z"], mode="lines", name="Z"), row=2, col=1)
         fig.add_hline(y=-mr_z, row=2, col=1, line_dash="dash")
         fig.add_hline(y=0, row=2, col=1, line_dash="dot")
-        fig.add_trace(go.Scatter(x=bt.index, y=bt["BuyHold_Equity"], mode="lines", name=tr("buy_hold")), row=3, col=1)
-        fig.add_trace(go.Scatter(x=bt.index, y=bt["Equity"], mode="lines", name=tr("meanrev_strategy")), row=3, col=1)
-        fig.update_layout(height=930)
+        fig.add_trace(go.Scatter(x=mr_bt.index, y=mr_bt["BuyHold_Equity"], mode="lines", name=tr("buy_hold")), row=3, col=1)
+        fig.add_trace(go.Scatter(x=mr_bt.index, y=mr_bt["Equity_Net"], mode="lines", name=tr("cost_adjusted")), row=3, col=1)
+        fig.update_layout(height=950)
         st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
-# 3. Momentum
+# Momentum
 # =========================================================
-with tabs[3]:
-    st.subheader(tr("momentum_title"))
+mom_bt = backtest_momentum(df["Close"], mom_lookback, initial_capital, trading_cost_bps, annual_factor)
+
+with tabs[5]:
+    st.subheader(tr("momentum_tab"))
     st.markdown(tr("momentum_desc"))
 
-    bt = backtest_momentum(df["Close"], mom_lookback, initial_capital)
-    if bt.empty:
+    if mom_bt.empty:
         st.warning(tr("not_enough_data"))
     else:
-        m_cagr_val, m_sharpe_val, m_mdd_val = equity_stats(bt["Equity"], annual_factor)
-        a, b, c = st.columns(3)
-        a.metric(tr("momentum_cagr"), fmt_metric(m_cagr_val, "pct"))
-        b.metric(tr("momentum_sharpe"), fmt_metric(m_sharpe_val, "ratio"))
-        c.metric(tr("momentum_mdd"), fmt_metric(m_mdd_val, "pct"))
+        stats = equity_stats(mom_bt["Equity_Net"], annual_factor)
+        a, b, c, d = st.columns(4)
+        a.metric(tr("cagr"), fmt_metric(stats["CAGR"], "pct"))
+        b.metric(tr("sharpe"), fmt_metric(stats["Sharpe"], "ratio"))
+        c.metric(tr("max_drawdown"), fmt_metric(stats["MDD"], "pct"))
+        d.metric(tr("turnover"), fmt_metric(mom_bt["Turnover"].mean() * annual_factor, "ratio"))
 
         fig = make_subplots(
             rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
             row_heights=[0.5, 0.5],
-            subplot_titles=(tr("price_and_momentum"), tr("equity_curve"))
+            subplot_titles=(tr("price"), tr("equity_curve"))
         )
-        fig.add_trace(go.Scatter(x=bt.index, y=bt["Close"], mode="lines", name="Close"), row=1, col=1)
-        fig.add_trace(go.Scatter(x=bt.index, y=bt["Momentum"], mode="lines", name=tr("momentum_title")), row=1, col=1)
+        fig.add_trace(go.Scatter(x=mom_bt.index, y=mom_bt["Close"], mode="lines", name="Close"), row=1, col=1)
+        fig.add_trace(go.Scatter(x=mom_bt.index, y=mom_bt["Momentum"], mode="lines", name="Momentum"), row=1, col=1)
         fig.add_hline(y=0, row=1, col=1, line_dash="dash")
-        fig.add_trace(go.Scatter(x=bt.index, y=bt["BuyHold_Equity"], mode="lines", name=tr("buy_hold")), row=2, col=1)
-        fig.add_trace(go.Scatter(x=bt.index, y=bt["Equity"], mode="lines", name=tr("momentum_strategy")), row=2, col=1)
-        fig.update_layout(height=800)
+        fig.add_trace(go.Scatter(x=mom_bt.index, y=mom_bt["BuyHold_Equity"], mode="lines", name=tr("buy_hold")), row=2, col=1)
+        fig.add_trace(go.Scatter(x=mom_bt.index, y=mom_bt["Equity_Net"], mode="lines", name=tr("cost_adjusted")), row=2, col=1)
+        fig.update_layout(height=820)
         st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
-# 4. Relative Momentum / Rotation
+# Asset Rotation
 # =========================================================
-with tabs[4]:
-    st.subheader(tr("relmom_title"))
-    st.markdown(tr("relmom_desc"))
+rotation_mom, rotation_bt = build_rotation_strategy(cmp_df, mom_lookback, initial_capital, trading_cost_bps)
 
-    if cmp_df.empty or cmp_df.shape[1] < 2:
+with tabs[6]:
+    st.subheader(tr("rotation_tab"))
+    st.markdown(tr("rotation_desc"))
+
+    if cmp_df.empty or cmp_df.shape[1] < 2 or rotation_bt.empty:
         st.warning(tr("need_two_assets"))
     else:
-        momentum_df, rot = build_rotation_strategy(cmp_df, mom_lookback, initial_capital)
+        rotation_stats = equity_stats(rotation_bt["Rotation_Equity_Net"], annual_factor)
+        a, b, c, d = st.columns(4)
+        a.metric(tr("cagr"), fmt_metric(rotation_stats["CAGR"], "pct"))
+        b.metric(tr("sharpe"), fmt_metric(rotation_stats["Sharpe"], "ratio"))
+        c.metric(tr("max_drawdown"), fmt_metric(rotation_stats["MDD"], "pct"))
+        d.metric(tr("turnover"), fmt_metric(rotation_bt["Turnover"].mean() * annual_factor, "ratio"))
 
         normalized = cmp_df.copy()
         for col in normalized.columns:
-            first_valid = normalized[col].dropna()
-            if not first_valid.empty:
-                normalized[col] = 100 * normalized[col] / first_valid.iloc[0]
+            normalized[col] = normalize_series(normalized[col])
 
-        fig = go.Figure()
+        fig = make_subplots(
+            rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
+            row_heights=[0.45, 0.55],
+            subplot_titles=("Relative Performance", tr("equity_curve"))
+        )
         for col in normalized.columns:
-            fig.add_trace(go.Scatter(x=normalized.index, y=normalized[col], mode="lines", name=col))
-        fig.update_layout(height=450, title=tr("normalized_performance"))
+            fig.add_trace(go.Scatter(x=normalized.index, y=normalized[col], mode="lines", name=col), row=1, col=1)
+        fig.add_trace(go.Scatter(x=rotation_bt.index, y=rotation_bt["Rotation_Equity_Raw"], mode="lines", name=tr("raw")), row=2, col=1)
+        fig.add_trace(go.Scatter(x=rotation_bt.index, y=rotation_bt["Rotation_Equity_Net"], mode="lines", name=tr("cost_adjusted")), row=2, col=1)
+        fig.update_layout(height=850)
         st.plotly_chart(fig, use_container_width=True)
 
-        if not rot.empty:
-            rot_cagr_val, rot_sharpe_val, rot_mdd_val = equity_stats(rot["Rotation_Equity"], annual_factor)
-            st.metric(tr("rotation_cagr"), fmt_metric(rot_cagr_val, "pct"))
-
-            fig2 = go.Figure()
-            fig2.add_trace(go.Scatter(x=rot.index, y=rot["Rotation_Equity"], mode="lines", name=tr("relmom_title")))
-            fig2.update_layout(height=420, title=tr("rotation_equity"))
-            st.plotly_chart(fig2, use_container_width=True)
-
-            last_leaders = rot["Leader"].dropna().tail(20).to_frame(name=tr("selected_asset"))
-            st.subheader(tr("recent_rotation_decisions"))
-            st.dataframe(last_leaders, use_container_width=True)
+        st.subheader(tr("recent_rotation_decisions"))
+        last_leaders = rotation_bt["Leader"].dropna().tail(20).to_frame(name=tr("selected_asset"))
+        st.dataframe(last_leaders, use_container_width=True)
 
 # =========================================================
-# 5. Volatility Targeting
+# Volatility Targeting
 # =========================================================
-with tabs[5]:
-    st.subheader(tr("voltarget_title"))
+vol_bt = backtest_vol_target(df["Close"], vol_window, target_vol, annual_factor, initial_capital, trading_cost_bps)
+
+with tabs[7]:
+    st.subheader(tr("voltarget_tab"))
     st.markdown(tr("voltarget_desc"))
 
-    bt = backtest_vol_target(df["Close"], vol_window, target_vol, annual_factor, initial_capital)
-    if bt.empty:
+    if vol_bt.empty:
         st.warning(tr("not_enough_data"))
     else:
-        v_cagr_val, v_sharpe_val, v_mdd_val = equity_stats(bt["Equity"], annual_factor)
-        a, b, c = st.columns(3)
-        a.metric(tr("voltarget_cagr"), fmt_metric(v_cagr_val, "pct"))
-        b.metric(tr("voltarget_sharpe"), fmt_metric(v_sharpe_val, "ratio"))
-        c.metric(tr("voltarget_mdd"), fmt_metric(v_mdd_val, "pct"))
+        stats = equity_stats(vol_bt["Equity_Net"], annual_factor)
+        a, b, c, d = st.columns(4)
+        a.metric(tr("cagr"), fmt_metric(stats["CAGR"], "pct"))
+        b.metric(tr("sharpe"), fmt_metric(stats["Sharpe"], "ratio"))
+        c.metric(tr("max_drawdown"), fmt_metric(stats["MDD"], "pct"))
+        d.metric(tr("turnover"), fmt_metric(vol_bt["Turnover"].mean() * annual_factor, "ratio"))
 
         fig = make_subplots(
             rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.06,
             row_heights=[0.34, 0.28, 0.38],
-            subplot_titles=(tr("overview_price"), tr("realized_vol_and_leverage"), tr("equity_curve"))
+            subplot_titles=(tr("price"), tr("volatility"), tr("equity_curve"))
         )
-        fig.add_trace(go.Scatter(x=bt.index, y=bt["Close"], mode="lines", name="Close"), row=1, col=1)
-        fig.add_trace(go.Scatter(x=bt.index, y=bt["Realized_Vol"], mode="lines", name=tr("volatility")), row=2, col=1)
-        fig.add_trace(go.Scatter(x=bt.index, y=bt["Leverage"], mode="lines", name="Leverage"), row=2, col=1)
-        fig.add_trace(go.Scatter(x=bt.index, y=bt["BuyHold_Equity"], mode="lines", name=tr("buy_hold")), row=3, col=1)
-        fig.add_trace(go.Scatter(x=bt.index, y=bt["Equity"], mode="lines", name=tr("vol_target")), row=3, col=1)
-        fig.update_layout(height=900)
+        fig.add_trace(go.Scatter(x=vol_bt.index, y=vol_bt["Close"], mode="lines", name="Close"), row=1, col=1)
+        fig.add_trace(go.Scatter(x=vol_bt.index, y=vol_bt["Realized_Vol"], mode="lines", name=tr("volatility")), row=2, col=1)
+        fig.add_trace(go.Scatter(x=vol_bt.index, y=vol_bt["Position"], mode="lines", name=tr("position")), row=2, col=1)
+        fig.add_trace(go.Scatter(x=vol_bt.index, y=vol_bt["BuyHold_Equity"], mode="lines", name=tr("buy_hold")), row=3, col=1)
+        fig.add_trace(go.Scatter(x=vol_bt.index, y=vol_bt["Equity_Net"], mode="lines", name=tr("cost_adjusted")), row=3, col=1)
+        fig.update_layout(height=930)
         st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
-# 6. Risk Parity
+# Risk Parity
 # =========================================================
-with tabs[6]:
-    st.subheader(tr("riskparity_title"))
+rp_weights, rp_equity, rp_turnover = build_risk_parity(cmp_df, vol_window, annual_factor, initial_capital, trading_cost_bps)
+
+with tabs[8]:
+    st.subheader(tr("riskparity_tab"))
     st.markdown(tr("riskparity_desc"))
 
-    if cmp_df.empty or cmp_df.shape[1] < 2:
-        st.warning(tr("need_multiple_assets"))
+    if cmp_df.empty or cmp_df.shape[1] < 2 or rp_equity.empty:
+        st.warning(tr("need_two_assets"))
     else:
-        weights, equity = build_risk_parity(cmp_df, vol_window, annual_factor, initial_capital)
+        rp_stats = equity_stats(rp_equity["Risk_Parity_Net"], annual_factor)
+        a, b, c, d = st.columns(4)
+        a.metric(tr("cagr"), fmt_metric(rp_stats["CAGR"], "pct"))
+        b.metric(tr("sharpe"), fmt_metric(rp_stats["Sharpe"], "ratio"))
+        c.metric(tr("max_drawdown"), fmt_metric(rp_stats["MDD"], "pct"))
+        d.metric(tr("turnover"), fmt_metric(rp_turnover.mean() * annual_factor, "ratio"))
 
-        if equity.empty:
-            st.warning(tr("not_enough_data"))
-        else:
-            rp_cagr_val, rp_sharpe_val, rp_mdd_val = equity_stats(equity["Risk_Parity"], annual_factor)
+        fig = make_subplots(
+            rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
+            row_heights=[0.4, 0.6],
+            subplot_titles=(tr("current_target_weights"), tr("equity_curve"))
+        )
 
-            a, b, c = st.columns(3)
-            a.metric(tr("rp_cagr"), fmt_metric(rp_cagr_val, "pct"))
-            b.metric(tr("rp_sharpe"), fmt_metric(rp_sharpe_val, "ratio"))
-            c.metric(tr("rp_mdd"), fmt_metric(rp_mdd_val, "pct"))
+        for col in rp_weights.columns:
+            fig.add_trace(go.Scatter(x=rp_weights.index, y=rp_weights[col], mode="lines", name=f"W_{col}"), row=1, col=1)
 
-            fig = make_subplots(
-                rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
-                row_heights=[0.4, 0.6],
-                subplot_titles=(tr("risk_parity_weights"), tr("equity_curve"))
-            )
-
-            for col in weights.columns:
-                fig.add_trace(go.Scatter(x=weights.index, y=weights[col], mode="lines", name=f"W_{col}"), row=1, col=1)
-
-            fig.add_trace(go.Scatter(x=equity.index, y=equity["Equal_Weight"], mode="lines", name=tr("equal_weight")), row=2, col=1)
-            fig.add_trace(go.Scatter(x=equity.index, y=equity["Risk_Parity"], mode="lines", name=tr("risk_parity")), row=2, col=1)
-            fig.update_layout(height=860)
-            fig.update_yaxes(tickformat=".0%", row=1, col=1)
-            st.plotly_chart(fig, use_container_width=True)
+        fig.add_trace(go.Scatter(x=rp_equity.index, y=rp_equity["Equal_Weight_Net"], mode="lines", name=tr("equal_weight_strategy")), row=2, col=1)
+        fig.add_trace(go.Scatter(x=rp_equity.index, y=rp_equity["Risk_Parity_Net"], mode="lines", name=tr("risk_parity_strategy")), row=2, col=1)
+        fig.update_layout(height=900)
+        fig.update_yaxes(tickformat=".0%", row=1, col=1)
+        st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
-# 7. Drawdown Buying
+# Portfolio Construction
 # =========================================================
-with tabs[7]:
-    st.subheader(tr("drawdown_title"))
+signal_df, suggested_weights, risk_contrib = build_portfolio_suggestion(cmp_df, mom_lookback, vol_window, annual_factor)
+
+with tabs[9]:
+    st.subheader(tr("portfolio_tab"))
+    st.markdown(tr("portfolio_desc"))
+
+    if signal_df.empty:
+        st.warning(tr("need_two_assets"))
+    else:
+        disp = signal_df.copy()
+        for col in [tr("6m_momentum"), tr("volatility"), tr("current_target_weights"), tr("risk_contribution")]:
+            disp[col] = disp[col].map(lambda x: f"{x:.2%}" if pd.notna(x) else tr("na"))
+        st.subheader(tr("signal_by_asset"))
+        st.dataframe(disp, use_container_width=True)
+
+        pie1, pie2 = st.columns(2)
+        with pie1:
+            fig_w = go.Figure(data=[go.Pie(labels=suggested_weights.index, values=suggested_weights.fillna(0).values, hole=0.4)])
+            fig_w.update_layout(height=420, title=tr("current_target_weights"))
+            st.plotly_chart(fig_w, use_container_width=True)
+
+        with pie2:
+            fig_r = go.Figure(data=[go.Pie(labels=risk_contrib.index, values=np.clip(risk_contrib.fillna(0).values, 0, None), hole=0.4)])
+            fig_r.update_layout(height=420, title=tr("risk_contribution"))
+            st.plotly_chart(fig_r, use_container_width=True)
+
+# =========================================================
+# Drawdown Buying
+# =========================================================
+with tabs[10]:
+    st.subheader(tr("drawdown_tab"))
     st.markdown(tr("drawdown_desc"))
 
     latest_dd = latest["Drawdown"]
-
     guide_rows = [
-        {tr("zone"): "0% ~ -5%", tr("meaning"): tr("near_highs"), tr("action"): tr("watch_small_entry")},
-        {tr("zone"): "-5% ~ -10%", tr("meaning"): tr("normal_pullback"), tr("action"): tr("first_buy")},
-        {tr("zone"): "-10% ~ -15%", tr("meaning"): tr("moderate_correction"), tr("action"): tr("second_buy")},
-        {tr("zone"): "-15% ~ -20%", tr("meaning"): tr("deep_correction"), tr("action"): tr("aggressive_buy")},
-        {tr("zone"): "< -20%", tr("meaning"): tr("severe_drawdown"), tr("action"): tr("opp_with_caution")},
+        {"Zone": "0% ~ -5%", "Meaning": "Near highs", "Action": "Watch / small entry"},
+        {"Zone": "-5% ~ -10%", "Meaning": "Normal pullback", "Action": "First phased buy"},
+        {"Zone": "-10% ~ -15%", "Meaning": "Moderate correction", "Action": "Second phased buy"},
+        {"Zone": "-15% ~ -20%", "Meaning": "Deep correction", "Action": "Aggressive phased buy"},
+        {"Zone": "< -20%", "Meaning": "Severe drawdown", "Action": "Opportunity with caution"},
     ]
     st.dataframe(pd.DataFrame(guide_rows), use_container_width=True)
 
     if pd.notna(latest_dd):
         if latest_dd > -0.05:
-            st.info(tr("current_state_near_highs"))
+            st.info("Current state: Near highs")
         elif latest_dd > -0.10:
-            st.info(tr("current_state_normal_pullback"))
+            st.info("Current state: Normal pullback")
         elif latest_dd > -0.15:
-            st.warning(tr("current_state_moderate"))
+            st.warning("Current state: Moderate correction")
         elif latest_dd > -0.20:
-            st.warning(tr("current_state_deep"))
+            st.warning("Current state: Deep correction")
         else:
-            st.error(tr("current_state_severe"))
+            st.error("Current state: Severe drawdown")
 
     fig = make_subplots(
         rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
         row_heights=[0.5, 0.5],
-        subplot_titles=(tr("price_and_ath"), tr("drawdown_zones"))
+        subplot_titles=("Price and ATH", tr("drawdown"))
     )
     fig.add_trace(go.Scatter(x=df.index, y=df["Close"], mode="lines", name="Close"), row=1, col=1)
     fig.add_trace(go.Scatter(x=df.index, y=df["ATH"], mode="lines", name="ATH"), row=1, col=1)
@@ -1462,15 +1572,15 @@ with tabs[7]:
     fig.add_hline(y=-0.10, row=2, col=1, line_dash="dash")
     fig.add_hline(y=-0.15, row=2, col=1, line_dash="dash")
     fig.add_hline(y=-0.20, row=2, col=1, line_dash="dash")
-    fig.update_layout(height=840)
+    fig.update_layout(height=850)
     fig.update_yaxes(tickformat=".0%", row=2, col=1)
     st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
-# 8. Multi-Factor
+# Multi-Factor
 # =========================================================
-with tabs[8]:
-    st.subheader(tr("multifactor_title"))
+with tabs[11]:
+    st.subheader(tr("multifactor_tab"))
     st.markdown(tr("multifactor_desc"))
 
     score, reasons, fac_df = latest_factor_score(df, mom_lookback, vol_window)
@@ -1486,7 +1596,6 @@ with tabs[8]:
     fac_df["LowVol_Rank"] = (1 - fac_df["Volatility"].rank(pct=True))
     fac_df["Trend_Flag"] = np.where(fac_df["MA50"] > fac_df["MA200"], 1.0, 0.0)
     fac_df["Quality_Rank"] = fac_df["Quality_Proxy"].rank(pct=True)
-
     fac_df["Composite_Score"] = (
         fac_df["Momentum_Rank"].fillna(0) +
         fac_df["LowVol_Rank"].fillna(0) +
@@ -1497,98 +1606,176 @@ with tabs[8]:
     fig = make_subplots(
         rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
         row_heights=[0.45, 0.55],
-        subplot_titles=(tr("overview_price"), tr("composite_factor_score"))
+        subplot_titles=(tr("price"), tr("composite_factor_score"))
     )
     fig.add_trace(go.Scatter(x=fac_df.index, y=fac_df["Close"], mode="lines", name="Close"), row=1, col=1)
-    fig.add_trace(go.Scatter(x=fac_df.index, y=fac_df["Composite_Score"], mode="lines", name=tr("multifactor_title")), row=2, col=1)
-    fig.update_layout(height=760)
+    fig.add_trace(go.Scatter(x=fac_df.index, y=fac_df["Composite_Score"], mode="lines", name=tr("multifactor_tab")), row=2, col=1)
+    fig.update_layout(height=780)
     st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
-# 9. Strategy Summary
+# Advanced Backtest
 # =========================================================
-with tabs[9]:
-    st.subheader(tr("summary_title"))
+with tabs[12]:
+    st.subheader(tr("advanced_bt_tab"))
+    st.markdown(tr("advanced_bt_desc"))
+
+    if trend_bt.empty:
+        st.warning(tr("not_enough_data"))
+    else:
+        adv_stats = equity_stats(trend_bt["Equity_Net"], annual_factor)
+        adv_bh_stats = equity_stats(trend_bt["BuyHold_Equity"], annual_factor)
+
+        c1, c2, c3, c4, c5, c6 = st.columns(6)
+        c1.metric(f"{tr('cost_adjusted')} {tr('cagr')}", fmt_metric(adv_stats["CAGR"], "pct"))
+        c2.metric(f"{tr('cost_adjusted')} {tr('sharpe')}", fmt_metric(adv_stats["Sharpe"], "ratio"))
+        c3.metric(f"{tr('cost_adjusted')} {tr('max_drawdown')}", fmt_metric(adv_stats["MDD"], "pct"))
+        c4.metric(f"{tr('buy_hold')} {tr('cagr')}", fmt_metric(adv_bh_stats["CAGR"], "pct"))
+        c5.metric(f"{tr('buy_hold')} {tr('sharpe')}", fmt_metric(adv_bh_stats["Sharpe"], "ratio"))
+        c6.metric(f"{tr('buy_hold')} {tr('max_drawdown')}", fmt_metric(adv_bh_stats["MDD"], "pct"))
+
+        fig = make_subplots(
+            rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.05,
+            row_heights=[0.38, 0.31, 0.31],
+            subplot_titles=(tr("equity_curve"), tr("rolling_sharpe"), tr("underwater_chart"))
+        )
+        fig.add_trace(go.Scatter(x=trend_bt.index, y=trend_bt["BuyHold_Equity"], mode="lines", name=tr("buy_hold")), row=1, col=1)
+        fig.add_trace(go.Scatter(x=trend_bt.index, y=trend_bt["Equity_Net"], mode="lines", name=tr("cost_adjusted")), row=1, col=1)
+
+        fig.add_trace(go.Scatter(x=trend_bt.index, y=trend_bt["Rolling_Sharpe_BH"], mode="lines", name=f"{tr('buy_hold')} {tr('rolling_sharpe')}"), row=2, col=1)
+        fig.add_trace(go.Scatter(x=trend_bt.index, y=trend_bt["Rolling_Sharpe_Net"], mode="lines", name=f"{tr('cost_adjusted')} {tr('rolling_sharpe')}"), row=2, col=1)
+
+        fig.add_trace(go.Scatter(x=trend_bt.index, y=trend_bt["Underwater_BH"], mode="lines", fill="tozeroy", name=f"{tr('buy_hold')} DD"), row=3, col=1)
+        fig.add_trace(go.Scatter(x=trend_bt.index, y=trend_bt["Underwater_Net"], mode="lines", fill="tozeroy", name=f"{tr('cost_adjusted')} DD"), row=3, col=1)
+
+        fig.update_layout(height=1100)
+        fig.update_yaxes(tickformat=".0%", row=3, col=1)
+        st.plotly_chart(fig, use_container_width=True)
+
+        fig2 = go.Figure()
+        fig2.add_trace(go.Scatter(x=trend_bt.index, y=trend_bt["Rolling_CAGR_BH"], mode="lines", name=f"{tr('buy_hold')} {tr('rolling_cagr')}"))
+        fig2.add_trace(go.Scatter(x=trend_bt.index, y=trend_bt["Rolling_CAGR_Net"], mode="lines", name=f"{tr('cost_adjusted')} {tr('rolling_cagr')}"))
+        fig2.update_layout(height=420, title=tr("rolling_cagr"))
+        fig2.update_yaxes(tickformat=".0%")
+        st.plotly_chart(fig2, use_container_width=True)
+
+        if show_monthly_heatmap:
+            heat = get_monthly_heatmap_from_equity(trend_bt["Equity_Net"])
+            if not heat.empty:
+                heat_vals = heat.copy()
+                fig3 = go.Figure(
+                    data=go.Heatmap(
+                        z=heat_vals.values,
+                        x=heat_vals.columns,
+                        y=heat_vals.index.astype(str),
+                        text=np.where(pd.isna(heat_vals.values), "", np.vectorize(lambda v: f"{v:.1%}")(np.nan_to_num(heat_vals.values, nan=0.0))),
+                        texttemplate="%{text}",
+                        hovertemplate="Year=%{y}<br>Month=%{x}<br>Return=%{z:.2%}<extra></extra>"
+                    )
+                )
+                fig3.update_layout(height=420, title=tr("monthly_heatmap"))
+                st.plotly_chart(fig3, use_container_width=True)
+
+# =========================================================
+# Strategy Summary
+# =========================================================
+with tabs[13]:
+    st.subheader(tr("summary_tab"))
+    st.markdown(tr("summary_desc"))
 
     summary_rows = []
 
     bh = backtest_buy_hold(df["Close"], initial_capital)
     if not bh.empty:
-        cagr_bh, sharpe_bh, mdd_bh = equity_stats(bh, annual_factor)
+        stats = equity_stats(bh, annual_factor)
         summary_rows.append({
             tr("strategy"): tr("buy_hold"),
             tr("final_value"): bh.iloc[-1],
-            tr("cagr"): cagr_bh,
-            tr("sharpe"): sharpe_bh,
-            tr("max_drawdown"): mdd_bh
+            tr("cagr"): stats["CAGR"],
+            tr("sharpe"): stats["Sharpe"],
+            tr("calmar"): stats["Calmar"],
+            tr("max_drawdown"): stats["MDD"],
+            tr("exposure"): 1.0,
+            tr("turnover"): 0.0,
         })
 
-    tf = backtest_trend(df["Close"], ma_short, ma_long, initial_capital)
-    if not tf.empty:
-        cagr_tf, sharpe_tf, mdd_tf = equity_stats(tf["Equity"], annual_factor)
+    if not trend_bt.empty:
+        stats = equity_stats(trend_bt["Equity_Net"], annual_factor)
         summary_rows.append({
-            tr("strategy"): tr("trend_title"),
-            tr("final_value"): tf["Equity"].iloc[-1],
-            tr("cagr"): cagr_tf,
-            tr("sharpe"): sharpe_tf,
-            tr("max_drawdown"): mdd_tf
+            tr("strategy"): tr("trend_tab"),
+            tr("final_value"): trend_bt["Equity_Net"].iloc[-1],
+            tr("cagr"): stats["CAGR"],
+            tr("sharpe"): stats["Sharpe"],
+            tr("calmar"): stats["Calmar"],
+            tr("max_drawdown"): stats["MDD"],
+            tr("exposure"): trend_bt["Exposure"].mean(),
+            tr("turnover"): trend_bt["Turnover"].mean() * annual_factor,
         })
 
-    mr = backtest_mean_reversion(df["Close"], mr_window, mr_z, initial_capital)
-    if not mr.empty:
-        cagr_mr, sharpe_mr, mdd_mr = equity_stats(mr["Equity"], annual_factor)
+    if not mr_bt.empty:
+        stats = equity_stats(mr_bt["Equity_Net"], annual_factor)
         summary_rows.append({
-            tr("strategy"): tr("meanrev_title"),
-            tr("final_value"): mr["Equity"].iloc[-1],
-            tr("cagr"): cagr_mr,
-            tr("sharpe"): sharpe_mr,
-            tr("max_drawdown"): mdd_mr
+            tr("strategy"): tr("meanrev_tab"),
+            tr("final_value"): mr_bt["Equity_Net"].iloc[-1],
+            tr("cagr"): stats["CAGR"],
+            tr("sharpe"): stats["Sharpe"],
+            tr("calmar"): stats["Calmar"],
+            tr("max_drawdown"): stats["MDD"],
+            tr("exposure"): mr_bt["Exposure"].mean(),
+            tr("turnover"): mr_bt["Turnover"].mean() * annual_factor,
         })
 
-    mom = backtest_momentum(df["Close"], mom_lookback, initial_capital)
-    if not mom.empty:
-        cagr_mom, sharpe_mom, mdd_mom = equity_stats(mom["Equity"], annual_factor)
+    if not mom_bt.empty:
+        stats = equity_stats(mom_bt["Equity_Net"], annual_factor)
         summary_rows.append({
-            tr("strategy"): tr("momentum_title"),
-            tr("final_value"): mom["Equity"].iloc[-1],
-            tr("cagr"): cagr_mom,
-            tr("sharpe"): sharpe_mom,
-            tr("max_drawdown"): mdd_mom
+            tr("strategy"): tr("momentum_tab"),
+            tr("final_value"): mom_bt["Equity_Net"].iloc[-1],
+            tr("cagr"): stats["CAGR"],
+            tr("sharpe"): stats["Sharpe"],
+            tr("calmar"): stats["Calmar"],
+            tr("max_drawdown"): stats["MDD"],
+            tr("exposure"): mom_bt["Exposure"].mean(),
+            tr("turnover"): mom_bt["Turnover"].mean() * annual_factor,
         })
 
-    vol_bt = backtest_vol_target(df["Close"], vol_window, target_vol, annual_factor, initial_capital)
     if not vol_bt.empty:
-        cagr_v, sharpe_v, mdd_v = equity_stats(vol_bt["Equity"], annual_factor)
+        stats = equity_stats(vol_bt["Equity_Net"], annual_factor)
         summary_rows.append({
-            tr("strategy"): tr("voltarget_title"),
-            tr("final_value"): vol_bt["Equity"].iloc[-1],
-            tr("cagr"): cagr_v,
-            tr("sharpe"): sharpe_v,
-            tr("max_drawdown"): mdd_v
+            tr("strategy"): tr("voltarget_tab"),
+            tr("final_value"): vol_bt["Equity_Net"].iloc[-1],
+            tr("cagr"): stats["CAGR"],
+            tr("sharpe"): stats["Sharpe"],
+            tr("calmar"): stats["Calmar"],
+            tr("max_drawdown"): stats["MDD"],
+            tr("exposure"): vol_bt["Exposure"].mean(),
+            tr("turnover"): vol_bt["Turnover"].mean() * annual_factor,
         })
 
-    if not cmp_df.empty and cmp_df.shape[1] >= 2:
-        _, rot = build_rotation_strategy(cmp_df, mom_lookback, initial_capital)
-        if not rot.empty:
-            cagr_rot, sharpe_rot, mdd_rot = equity_stats(rot["Rotation_Equity"], annual_factor)
-            summary_rows.append({
-                tr("strategy"): tr("relmom_title"),
-                tr("final_value"): rot["Rotation_Equity"].iloc[-1],
-                tr("cagr"): cagr_rot,
-                tr("sharpe"): sharpe_rot,
-                tr("max_drawdown"): mdd_rot
-            })
+    if not rotation_bt.empty:
+        stats = equity_stats(rotation_bt["Rotation_Equity_Net"], annual_factor)
+        summary_rows.append({
+            tr("strategy"): tr("rotation_tab"),
+            tr("final_value"): rotation_bt["Rotation_Equity_Net"].iloc[-1],
+            tr("cagr"): stats["CAGR"],
+            tr("sharpe"): stats["Sharpe"],
+            tr("calmar"): stats["Calmar"],
+            tr("max_drawdown"): stats["MDD"],
+            tr("exposure"): 1.0,
+            tr("turnover"): rotation_bt["Turnover"].mean() * annual_factor,
+        })
 
-        _, rp_eq = build_risk_parity(cmp_df, vol_window, annual_factor, initial_capital)
-        if not rp_eq.empty:
-            cagr_rp, sharpe_rp, mdd_rp = equity_stats(rp_eq["Risk_Parity"], annual_factor)
-            summary_rows.append({
-                tr("strategy"): tr("riskparity_title"),
-                tr("final_value"): rp_eq["Risk_Parity"].iloc[-1],
-                tr("cagr"): cagr_rp,
-                tr("sharpe"): sharpe_rp,
-                tr("max_drawdown"): mdd_rp
-            })
+    if not rp_equity.empty:
+        stats = equity_stats(rp_equity["Risk_Parity_Net"], annual_factor)
+        summary_rows.append({
+            tr("strategy"): tr("riskparity_tab"),
+            tr("final_value"): rp_equity["Risk_Parity_Net"].iloc[-1],
+            tr("cagr"): stats["CAGR"],
+            tr("sharpe"): stats["Sharpe"],
+            tr("calmar"): stats["Calmar"],
+            tr("max_drawdown"): stats["MDD"],
+            tr("exposure"): 1.0,
+            tr("turnover"): rp_turnover.mean() * annual_factor if not rp_turnover.empty else np.nan,
+        })
 
     summary_df = pd.DataFrame(summary_rows)
 
@@ -1597,35 +1784,30 @@ with tabs[9]:
     else:
         display_df = summary_df.copy()
         display_df[tr("final_value")] = display_df[tr("final_value")].map(lambda x: f"{x:,.0f}" if pd.notna(x) else tr("na"))
-        display_df[tr("cagr")] = display_df[tr("cagr")].map(lambda x: f"{x:.2%}" if pd.notna(x) else tr("na"))
-        display_df[tr("sharpe")] = display_df[tr("sharpe")].map(lambda x: f"{x:.2f}" if pd.notna(x) else tr("na"))
-        display_df[tr("max_drawdown")] = display_df[tr("max_drawdown")].map(lambda x: f"{x:.2%}" if pd.notna(x) else tr("na"))
+        for col in [tr("cagr"), tr("max_drawdown"), tr("exposure"), tr("turnover")]:
+            display_df[col] = display_df[col].map(lambda x: f"{x:.2%}" if pd.notna(x) else tr("na"))
+        for col in [tr("sharpe"), tr("calmar")]:
+            display_df[col] = display_df[col].map(lambda x: f"{x:.2f}" if pd.notna(x) else tr("na"))
+
         st.dataframe(display_df, use_container_width=True)
 
         fig = go.Figure()
-
         if not bh.empty:
             fig.add_trace(go.Scatter(x=bh.index, y=bh, mode="lines", name=tr("buy_hold")))
-        if not tf.empty:
-            fig.add_trace(go.Scatter(x=tf.index, y=tf["Equity"], mode="lines", name=tr("trend_title")))
-        if not mr.empty:
-            fig.add_trace(go.Scatter(x=mr.index, y=mr["Equity"], mode="lines", name=tr("meanrev_title")))
-        if not mom.empty:
-            fig.add_trace(go.Scatter(x=mom.index, y=mom["Equity"], mode="lines", name=tr("momentum_title")))
+        if not trend_bt.empty:
+            fig.add_trace(go.Scatter(x=trend_bt.index, y=trend_bt["Equity_Net"], mode="lines", name=tr("trend_tab")))
+        if not mr_bt.empty:
+            fig.add_trace(go.Scatter(x=mr_bt.index, y=mr_bt["Equity_Net"], mode="lines", name=tr("meanrev_tab")))
+        if not mom_bt.empty:
+            fig.add_trace(go.Scatter(x=mom_bt.index, y=mom_bt["Equity_Net"], mode="lines", name=tr("momentum_tab")))
         if not vol_bt.empty:
-            fig.add_trace(go.Scatter(x=vol_bt.index, y=vol_bt["Equity"], mode="lines", name=tr("voltarget_title")))
-        if not cmp_df.empty and cmp_df.shape[1] >= 2:
-            _, rot = build_rotation_strategy(cmp_df, mom_lookback, initial_capital)
-            if not rot.empty:
-                fig.add_trace(go.Scatter(x=rot.index, y=rot["Rotation_Equity"], mode="lines", name=tr("relmom_title")))
-            _, rp_eq = build_risk_parity(cmp_df, vol_window, annual_factor, initial_capital)
-            if not rp_eq.empty:
-                fig.add_trace(go.Scatter(x=rp_eq.index, y=rp_eq["Risk_Parity"], mode="lines", name=tr("riskparity_title")))
-
-        fig.update_layout(height=520, title=tr("equity_comparison"))
+            fig.add_trace(go.Scatter(x=vol_bt.index, y=vol_bt["Equity_Net"], mode="lines", name=tr("voltarget_tab")))
+        if not rotation_bt.empty:
+            fig.add_trace(go.Scatter(x=rotation_bt.index, y=rotation_bt["Rotation_Equity_Net"], mode="lines", name=tr("rotation_tab")))
+        if not rp_equity.empty:
+            fig.add_trace(go.Scatter(x=rp_equity.index, y=rp_equity["Risk_Parity_Net"], mode="lines", name=tr("riskparity_tab")))
+        fig.update_layout(height=550, title=tr("equity_curve"))
         st.plotly_chart(fig, use_container_width=True)
-
-        st.markdown(tr("summary_learn"))
 
 # =========================================================
 # Footer
