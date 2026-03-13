@@ -1,374 +1,390 @@
-# -*- coding: utf-8 -*-
-"""
-QQQ / SPY / SCHD Quant Dashboard (Streamlit)
-- Trend filter: invest only if price > moving average
-- Momentum rotation: select top assets by momentum
-- Volatility weighting: inverse volatility weighting
-- Monthly rebalance
-- Compare with equal-weight buy & hold
-
-Run locally:
-    streamlit run streamlit_app.py
-"""
-
-import warnings
-warnings.filterwarnings("ignore")
-
-import numpy as np
-import pandas as pd
-import yfinance as yf
+# streamlit_app.py
 import streamlit as st
+import pandas as pd
+import numpy as np
+import yfinance as yf
+import plotly.express as px
 import plotly.graph_objects as go
 
-# =========================================================
-# PAGE CONFIG
-# =========================================================
-st.set_page_config(
-    page_title="Quant ETF Dashboard",
-    page_icon="📈",
-    layout="wide"
-)
+st.set_page_config(page_title="Nasdaq-100 Quant Screener", layout="wide")
 
-st.title("📈 QQQ / SPY / SCHD Quant Dashboard")
-st.caption("Trend + Momentum + Volatility + Monthly Rebalance")
+st.title("Nasdaq-100 Quant Screener")
+st.caption("Tabs by strategy: momentum, quality, growth, value, defensive, multi-factor")
 
-# =========================================================
-# SIDEBAR
-# =========================================================
-st.sidebar.header("Settings")
+@st.cache_data(ttl=3600)
+def get_nasdaq100_from_wiki():
+    url = "https://en.wikipedia.org/wiki/Nasdaq-100"
+    tables = pd.read_html(url)
+    for t in tables:
+        cols = [str(c).lower() for c in t.columns]
+        if any("ticker" in c or "symbol" in c for c in cols):
+            df = t.copy()
+            break
+    else:
+        raise ValueError("Nasdaq-100 table not found")
 
-tickers_input = st.sidebar.text_input("Tickers (comma separated)", "QQQ,SPY,SCHD")
-start_date = st.sidebar.date_input("Start date", pd.to_datetime("2010-01-01"))
-trend_window = st.sidebar.slider("Trend MA window", 50, 300, 200, 10)
-momentum_window = st.sidebar.slider("Momentum window (trading days)", 63, 252, 252, 21)
-vol_window = st.sidebar.slider("Volatility window (trading days)", 21, 126, 63, 21)
-top_n = st.sidebar.slider("Top N momentum assets", 1, 3, 2, 1)
-rebalance_freq = st.sidebar.selectbox("Rebalance frequency", ["M", "Q"], index=0)
+    ticker_col = None
+    for c in df.columns:
+        lc = str(c).lower()
+        if "ticker" in lc or "symbol" in lc:
+            ticker_col = c
+            break
 
-run_button = st.sidebar.button("Run Strategy")
+    name_col = None
+    for c in df.columns:
+        lc = str(c).lower()
+        if "company" in lc or "security" in lc or "name" in lc:
+            name_col = c
+            break
 
-# =========================================================
-# HELPERS
-# =========================================================
-@st.cache_data(show_spinner=False)
-def download_prices(tickers, start_date):
+    if ticker_col is None:
+        raise ValueError("Ticker column not found")
+
+    out = pd.DataFrame()
+    out["Ticker"] = df[ticker_col].astype(str).str.replace(".", "-", regex=False)
+    out["Name"] = df[name_col].astype(str) if name_col else out["Ticker"]
+    return out.drop_duplicates().reset_index(drop=True)
+
+@st.cache_data(ttl=3600)
+def download_price_data(tickers, period="2y"):
     data = yf.download(
-        tickers,
-        start=start_date,
+        tickers=tickers,
+        period=period,
         auto_adjust=True,
-        progress=False
+        progress=False,
+        group_by="ticker",
+        threads=True,
+    )
+    return data
+
+def compute_metrics(price_data, tickers):
+    rows = []
+
+    for t in tickers:
+        try:
+            df = price_data[t].dropna().copy()
+            if len(df) < 220:
+                continue
+
+            close = df["Close"]
+            vol = df["Volume"]
+
+            price = close.iloc[-1]
+            ma50 = close.rolling(50).mean().iloc[-1]
+            ma200 = close.rolling(200).mean().iloc[-1]
+
+            ret_1m = close.iloc[-1] / close.iloc[-22] - 1 if len(close) > 22 else np.nan
+            ret_3m = close.iloc[-1] / close.iloc[-63] - 1 if len(close) > 63 else np.nan
+            ret_6m = close.iloc[-1] / close.iloc[-126] - 1 if len(close) > 126 else np.nan
+            ret_12m = close.iloc[-1] / close.iloc[-252] - 1 if len(close) > 252 else np.nan
+
+            high_52w = close.tail(252).max()
+            dist_high = price / high_52w - 1
+
+            daily_ret = close.pct_change().dropna()
+            vol_1y = daily_ret.tail(252).std() * np.sqrt(252)
+
+            running_max = close.cummax()
+            dd = close / running_max - 1
+            mdd_1y = dd.tail(252).min()
+
+            avg_vol_dollar = (close * vol).tail(63).mean()
+
+            rows.append({
+                "Ticker": t,
+                "Price": price,
+                "MA50": ma50,
+                "MA200": ma200,
+                "Ret_1M": ret_1m,
+                "Ret_3M": ret_3m,
+                "Ret_6M": ret_6m,
+                "Ret_12M": ret_12m,
+                "High_52W": high_52w,
+                "Dist_52W_High": dist_high,
+                "Volatility_1Y": vol_1y,
+                "MDD_1Y": mdd_1y,
+                "Avg_Dollar_Volume": avg_vol_dollar,
+                "Trend_OK": int(price > ma50 and ma50 > ma200),
+                "Above_MA200": int(price > ma200),
+            })
+        except Exception:
+            continue
+
+    return pd.DataFrame(rows)
+
+@st.cache_data(ttl=3600)
+def download_fundamentals(tickers):
+    rows = []
+    for t in tickers:
+        try:
+            info = yf.Ticker(t).info
+            rows.append({
+                "Ticker": t,
+                "ROE": info.get("returnOnEquity", np.nan),
+                "OperatingMargin": info.get("operatingMargins", np.nan),
+                "GrossMargin": info.get("grossMargins", np.nan),
+                "DebtToEquity": info.get("debtToEquity", np.nan),
+                "RevenueGrowth": info.get("revenueGrowth", np.nan),
+                "EpsGrowth": info.get("earningsGrowth", np.nan),
+                "ForwardPE": info.get("forwardPE", np.nan),
+                "PegRatio": info.get("pegRatio", np.nan),
+                "Beta": info.get("beta", np.nan),
+            })
+        except Exception:
+            rows.append({"Ticker": t})
+    return pd.DataFrame(rows)
+
+def pct_rank(series, ascending=True):
+    s = series.replace([np.inf, -np.inf], np.nan)
+    return s.rank(pct=True, ascending=ascending)
+
+def build_scores(df):
+    x = df.copy()
+
+    x["MomentumScore"] = (
+        0.35 * pct_rank(x["Ret_12M"], ascending=True) +
+        0.25 * pct_rank(x["Ret_6M"], ascending=True) +
+        0.20 * pct_rank(x["Dist_52W_High"], ascending=True) +
+        0.20 * x["Trend_OK"].fillna(0)
     )
 
-    if data.empty:
-        return pd.DataFrame()
+    x["QualityScore"] = (
+        0.35 * pct_rank(x["ROE"], ascending=True) +
+        0.25 * pct_rank(x["OperatingMargin"], ascending=True) +
+        0.20 * pct_rank(x["GrossMargin"], ascending=True) +
+        0.20 * pct_rank(-x["DebtToEquity"], ascending=True)
+    )
 
-    if isinstance(data.columns, pd.MultiIndex):
-        if "Close" in data.columns.get_level_values(0):
-            prices = data["Close"].copy()
-        else:
-            prices = data.xs(tickers[0], axis=1, level=1, drop_level=False)
-    else:
-        prices = data.copy()
+    x["GrowthScore"] = (
+        0.60 * pct_rank(x["RevenueGrowth"], ascending=True) +
+        0.40 * pct_rank(x["EpsGrowth"], ascending=True)
+    )
 
-    if isinstance(prices, pd.Series):
-        prices = prices.to_frame()
+    x["ValueScore"] = (
+        0.55 * pct_rank(-x["ForwardPE"], ascending=True) +
+        0.45 * pct_rank(-x["PegRatio"], ascending=True)
+    )
 
-    prices = prices.dropna(how="all")
-    return prices
+    x["DefensiveScore"] = (
+        0.40 * pct_rank(-x["Volatility_1Y"], ascending=True) +
+        0.30 * pct_rank(x["MDD_1Y"], ascending=True) +
+        0.15 * pct_rank(-x["Beta"], ascending=True) +
+        0.15 * x["Above_MA200"].fillna(0)
+    )
 
+    x["TotalScore"] = (
+        0.35 * x["MomentumScore"].fillna(0) +
+        0.30 * x["QualityScore"].fillna(0) +
+        0.20 * x["GrowthScore"].fillna(0) +
+        0.15 * x["ValueScore"].fillna(0)
+    )
 
-def calc_cagr(equity_curve):
-    if len(equity_curve) < 2:
-        return np.nan
-    total_return = equity_curve.iloc[-1] / equity_curve.iloc[0]
-    years = (equity_curve.index[-1] - equity_curve.index[0]).days / 365.25
-    if years <= 0:
-        return np.nan
-    return total_return ** (1 / years) - 1
+    return x
 
+# -----------------------
+# Load data
+# -----------------------
+universe = get_nasdaq100_from_wiki()
+tickers = universe["Ticker"].tolist()
 
-def calc_mdd(equity_curve):
-    if len(equity_curve) < 2:
-        return np.nan
-    running_max = equity_curve.cummax()
-    drawdown = equity_curve / running_max - 1
-    return drawdown.min()
+price_data = download_price_data(tickers, period="2y")
+tech_df = compute_metrics(price_data, tickers)
+fund_df = download_fundamentals(tickers)
 
+df = tech_df.merge(fund_df, on="Ticker", how="left").merge(universe, on="Ticker", how="left")
+df = build_scores(df)
 
-def calc_sharpe(daily_returns, rf=0.0):
-    if len(daily_returns) < 2:
-        return np.nan
-    excess = daily_returns - rf / 252
-    vol = excess.std()
-    if vol == 0 or np.isnan(vol):
-        return np.nan
-    return np.sqrt(252) * excess.mean() / vol
+st.sidebar.header("Filters")
+top_n = st.sidebar.slider("Top N", 5, 30, 15)
+min_dollar_volume = st.sidebar.number_input("Min Avg Dollar Volume", value=20_000_000)
+filtered = df[df["Avg_Dollar_Volume"].fillna(0) >= min_dollar_volume].copy()
 
+tabs = st.tabs([
+    "Overview", "Momentum", "Quality", "Growth",
+    "Value", "Defensive", "Multi-Factor"
+])
 
-def build_strategy(prices, trend_window, momentum_window, vol_window, top_n, rebalance_freq):
-    daily_ret = prices.pct_change().fillna(0)
+# Overview
+with tabs[0]:
+    st.subheader("Universe Overview")
+    c1, c2 = st.columns(2)
 
-    ma = prices.rolling(trend_window).mean()
-    momentum = prices / prices.shift(momentum_window) - 1
-    vol = daily_ret.rolling(vol_window).std() * np.sqrt(252)
-
-    rebalance_dates = prices.resample(rebalance_freq).last().index
-    rebalance_dates = [d for d in rebalance_dates if d in prices.index]
-
-    weights = pd.DataFrame(0.0, index=prices.index, columns=prices.columns)
-    current_weights = pd.Series(0.0, index=prices.columns)
-
-    for date in prices.index:
-        if date in rebalance_dates:
-            candidates = []
-
-            for t in prices.columns:
-                p = prices.loc[date, t]
-                ma_t = ma.loc[date, t]
-                mom_t = momentum.loc[date, t]
-                vol_t = vol.loc[date, t]
-
-                if pd.notna(p) and pd.notna(ma_t) and pd.notna(mom_t) and pd.notna(vol_t):
-                    if p > ma_t:
-                        candidates.append(t)
-
-            if len(candidates) > 0:
-                ranked = momentum.loc[date, candidates].sort_values(ascending=False)
-                selected = ranked.head(top_n).index.tolist()
-
-                inv_vol = 1 / vol.loc[date, selected]
-                inv_vol = inv_vol.replace([np.inf, -np.inf], np.nan).dropna()
-
-                current_weights = pd.Series(0.0, index=prices.columns)
-                if len(inv_vol) > 0:
-                    current_weights.loc[inv_vol.index] = inv_vol / inv_vol.sum()
-            else:
-                current_weights = pd.Series(0.0, index=prices.columns)
-
-        weights.loc[date] = current_weights
-
-    # avoid look-ahead bias
-    weights = weights.shift(1).fillna(0)
-
-    strategy_returns = (weights * daily_ret).sum(axis=1)
-    strategy_equity = (1 + strategy_returns).cumprod()
-
-    bh_returns = daily_ret.mean(axis=1)
-    bh_equity = (1 + bh_returns).cumprod()
-
-    return {
-        "weights": weights,
-        "strategy_returns": strategy_returns,
-        "strategy_equity": strategy_equity,
-        "bh_returns": bh_returns,
-        "bh_equity": bh_equity,
-        "momentum": momentum,
-        "vol": vol,
-        "ma": ma
-    }
-
-
-def make_metrics_df(result):
-    strat_eq = result["strategy_equity"]
-    strat_ret = result["strategy_returns"]
-    bh_eq = result["bh_equity"]
-    bh_ret = result["bh_returns"]
-
-    df = pd.DataFrame({
-        "Strategy": [
-            calc_cagr(strat_eq),
-            calc_mdd(strat_eq),
-            calc_sharpe(strat_ret)
-        ],
-        "Buy & Hold": [
-            calc_cagr(bh_eq),
-            calc_mdd(bh_eq),
-            calc_sharpe(bh_ret)
-        ]
-    }, index=["CAGR", "MDD", "Sharpe"])
-
-    return df
-
-
-def format_metric(v, name):
-    if pd.isna(v):
-        return "-"
-    if name in ["CAGR", "MDD"]:
-        return f"{v:.2%}"
-    return f"{v:.2f}"
-
-
-# =========================================================
-# MAIN
-# =========================================================
-if run_button:
-    tickers = [x.strip().upper() for x in tickers_input.split(",") if x.strip()]
-    if len(tickers) == 0:
-        st.error("Please enter at least one ticker.")
-        st.stop()
-
-    with st.spinner("Downloading market data and running strategy..."):
-        prices = download_prices(tickers, str(start_date))
-
-        if prices.empty:
-            st.error("No price data was downloaded.")
-            st.stop()
-
-        # ensure selected order is preserved if possible
-        cols = [c for c in tickers if c in prices.columns]
-        if len(cols) == 0:
-            st.error("Downloaded data does not contain requested tickers.")
-            st.stop()
-
-        prices = prices[cols].dropna(how="all")
-
-        result = build_strategy(
-            prices=prices,
-            trend_window=trend_window,
-            momentum_window=momentum_window,
-            vol_window=vol_window,
-            top_n=top_n,
-            rebalance_freq=rebalance_freq
+    with c1:
+        fig = px.bar(
+            filtered.sort_values("Ret_12M", ascending=False).head(20),
+            x="Ticker", y="Ret_12M", title="Top 20 by 12M Return"
         )
+        st.plotly_chart(fig, use_container_width=True)
 
-        metrics_df = make_metrics_df(result)
-
-    # =====================================================
-    # SUMMARY
-    # =====================================================
-    st.subheader("Performance Summary")
-
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Strategy CAGR", format_metric(metrics_df.loc["CAGR", "Strategy"], "CAGR"))
-    c2.metric("Strategy MDD", format_metric(metrics_df.loc["MDD", "Strategy"], "MDD"))
-    c3.metric("Strategy Sharpe", format_metric(metrics_df.loc["Sharpe", "Strategy"], "Sharpe"))
+    with c2:
+        fig = px.scatter(
+            filtered,
+            x="Ret_6M",
+            y="Ret_12M",
+            hover_data=["Ticker", "Name"],
+            title="6M vs 12M Return"
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
     st.dataframe(
-        metrics_df.apply(lambda col: [
-            format_metric(col.iloc[0], "CAGR"),
-            format_metric(col.iloc[1], "MDD"),
-            format_metric(col.iloc[2], "Sharpe")
-        ]),
+        filtered.sort_values("Ret_12M", ascending=False)[[
+            "Ticker", "Name", "Price", "Ret_1M", "Ret_3M", "Ret_6M", "Ret_12M", "MA200"
+        ]],
         use_container_width=True
     )
 
-    # =====================================================
-    # EQUITY CURVE
-    # =====================================================
-    st.subheader("Equity Curve")
+# Momentum
+with tabs[1]:
+    st.subheader("Momentum Strategy")
+    st.write("Rule example: Price > MA50 > MA200, positive 6M/12M return, near 52-week high")
 
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=result["strategy_equity"].index,
-        y=result["strategy_equity"],
-        mode="lines",
-        name="Quant Strategy"
-    ))
-    fig.add_trace(go.Scatter(
-        x=result["bh_equity"].index,
-        y=result["bh_equity"],
-        mode="lines",
-        name="Equal Weight Buy & Hold"
-    ))
-    fig.update_layout(
-        height=520,
-        xaxis_title="Date",
-        yaxis_title="Cumulative Return",
-        legend_title="Portfolio"
-    )
-    st.plotly_chart(fig, use_container_width=True)
+    mom = filtered.sort_values("MomentumScore", ascending=False).head(top_n)
 
-    # =====================================================
-    # DRAWDOWN
-    # =====================================================
-    st.subheader("Drawdown")
+    c1, c2 = st.columns(2)
+    with c1:
+        fig = px.bar(mom, x="Ticker", y="MomentumScore", title="Momentum Score Ranking")
+        st.plotly_chart(fig, use_container_width=True)
 
-    strat_dd = result["strategy_equity"] / result["strategy_equity"].cummax() - 1
-    bh_dd = result["bh_equity"] / result["bh_equity"].cummax() - 1
-
-    fig_dd = go.Figure()
-    fig_dd.add_trace(go.Scatter(
-        x=strat_dd.index,
-        y=strat_dd,
-        mode="lines",
-        name="Quant Strategy DD"
-    ))
-    fig_dd.add_trace(go.Scatter(
-        x=bh_dd.index,
-        y=bh_dd,
-        mode="lines",
-        name="Buy & Hold DD"
-    ))
-    fig_dd.update_layout(
-        height=420,
-        xaxis_title="Date",
-        yaxis_title="Drawdown"
-    )
-    st.plotly_chart(fig_dd, use_container_width=True)
-
-    # =====================================================
-    # CURRENT WEIGHTS
-    # =====================================================
-    st.subheader("Latest Portfolio Weights")
-    latest_weights = result["weights"].iloc[-1]
-    latest_weights = latest_weights[latest_weights > 0].sort_values(ascending=False)
-
-    if len(latest_weights) == 0:
-        st.info("Current allocation is fully in cash based on the strategy filters.")
-    else:
-        st.dataframe(
-            latest_weights.to_frame("Weight").style.format({"Weight": "{:.2%}"}),
-            use_container_width=True
+    with c2:
+        fig = px.scatter(
+            filtered,
+            x="Ret_6M",
+            y="Ret_12M",
+            size="MomentumScore",
+            hover_data=["Ticker"],
+            title="Momentum Evidence"
         )
+        st.plotly_chart(fig, use_container_width=True)
 
-    # =====================================================
-    # LATEST INDICATORS
-    # =====================================================
-    st.subheader("Latest Indicators")
+    st.dataframe(mom[[
+        "Ticker", "Name", "Price", "Ret_6M", "Ret_12M",
+        "Dist_52W_High", "Trend_OK", "MomentumScore"
+    ]], use_container_width=True)
 
-    latest_date = prices.index[-1]
-    latest_table = pd.DataFrame({
-        "Price": prices.loc[latest_date],
-        f"MA({trend_window})": result["ma"].loc[latest_date],
-        f"Momentum({momentum_window}d)": result["momentum"].loc[latest_date],
-        f"Volatility({vol_window}d)": result["vol"].loc[latest_date]
-    })
+# Quality
+with tabs[2]:
+    st.subheader("Quality Strategy")
+    st.write("Rule example: high ROE, high margins, controlled debt")
 
-    st.dataframe(
-        latest_table.style.format({
-            "Price": "{:.2f}",
-            f"MA({trend_window})": "{:.2f}",
-            f"Momentum({momentum_window}d)": "{:.2%}",
-            f"Volatility({vol_window}d)": "{:.2%}"
-        }),
-        use_container_width=True
-    )
+    q = filtered.sort_values("QualityScore", ascending=False).head(top_n)
 
-    # =====================================================
-    # PRICE CHART
-    # =====================================================
-    st.subheader("Price Chart")
+    c1, c2 = st.columns(2)
+    with c1:
+        fig = px.bar(q, x="Ticker", y="ROE", title="Top ROE")
+        st.plotly_chart(fig, use_container_width=True)
+    with c2:
+        fig = px.scatter(
+            filtered,
+            x="ROE",
+            y="OperatingMargin",
+            size="QualityScore",
+            hover_data=["Ticker"],
+            title="ROE vs Operating Margin"
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
-    selected_ticker = st.selectbox("Select ticker", list(prices.columns))
-    fig_price = go.Figure()
-    fig_price.add_trace(go.Scatter(
-        x=prices.index,
-        y=prices[selected_ticker],
-        mode="lines",
-        name=selected_ticker
-    ))
-    fig_price.add_trace(go.Scatter(
-        x=result["ma"].index,
-        y=result["ma"][selected_ticker],
-        mode="lines",
-        name=f"MA({trend_window})"
-    ))
-    fig_price.update_layout(
-        height=450,
-        xaxis_title="Date",
-        yaxis_title="Price"
-    )
-    st.plotly_chart(fig_price, use_container_width=True)
+    st.dataframe(q[[
+        "Ticker", "Name", "ROE", "OperatingMargin",
+        "GrossMargin", "DebtToEquity", "QualityScore"
+    ]], use_container_width=True)
 
-else:
-    st.info("Set parameters in the sidebar and click 'Run Strategy'.")
+# Growth
+with tabs[3]:
+    st.subheader("Growth Strategy")
+    st.write("Rule example: high revenue growth and EPS growth")
+
+    g = filtered.sort_values("GrowthScore", ascending=False).head(top_n)
+
+    c1, c2 = st.columns(2)
+    with c1:
+        fig = px.bar(g, x="Ticker", y="RevenueGrowth", title="Revenue Growth Ranking")
+        st.plotly_chart(fig, use_container_width=True)
+    with c2:
+        fig = px.scatter(
+            filtered,
+            x="RevenueGrowth",
+            y="EpsGrowth",
+            size="GrowthScore",
+            hover_data=["Ticker"],
+            title="Revenue Growth vs EPS Growth"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.dataframe(g[[
+        "Ticker", "Name", "RevenueGrowth", "EpsGrowth", "GrowthScore"
+    ]], use_container_width=True)
+
+# Value
+with tabs[4]:
+    st.subheader("Value / Reasonable Growth")
+    st.write("Rule example: lower Forward PE and PEG within the Nasdaq-100 universe")
+
+    v = filtered.sort_values("ValueScore", ascending=False).head(top_n)
+
+    c1, c2 = st.columns(2)
+    with c1:
+        fig = px.bar(v, x="Ticker", y="ForwardPE", title="Forward PE")
+        st.plotly_chart(fig, use_container_width=True)
+    with c2:
+        fig = px.scatter(
+            filtered,
+            x="ForwardPE",
+            y="EpsGrowth",
+            size="ValueScore",
+            hover_data=["Ticker"],
+            title="Forward PE vs EPS Growth"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.dataframe(v[[
+        "Ticker", "Name", "ForwardPE", "PegRatio", "EpsGrowth", "ValueScore"
+    ]], use_container_width=True)
+
+# Defensive
+with tabs[5]:
+    st.subheader("Low Vol / Defensive")
+    st.write("Rule example: lower volatility, smaller drawdown, lower beta")
+
+    d = filtered.sort_values("DefensiveScore", ascending=False).head(top_n)
+
+    c1, c2 = st.columns(2)
+    with c1:
+        fig = px.bar(d, x="Ticker", y="Volatility_1Y", title="1Y Volatility")
+        st.plotly_chart(fig, use_container_width=True)
+    with c2:
+        fig = px.scatter(
+            filtered,
+            x="Volatility_1Y",
+            y="Ret_12M",
+            size="DefensiveScore",
+            hover_data=["Ticker"],
+            title="Return vs Volatility"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.dataframe(d[[
+        "Ticker", "Name", "Volatility_1Y", "MDD_1Y", "Beta", "DefensiveScore"
+    ]], use_container_width=True)
+
+# Multi-Factor
+with tabs[6]:
+    st.subheader("Multi-Factor Ranking")
+    st.write("Recommended practical view: Momentum 35%, Quality 30%, Growth 20%, Value 15%")
+
+    mf = filtered.sort_values("TotalScore", ascending=False).head(top_n)
+
+    c1, c2 = st.columns(2)
+    with c1:
+        fig = px.bar(mf, x="Ticker", y="TotalScore", title="Top Multi-Factor Ranking")
+        st.plotly_chart(fig, use_container_width=True)
+    with c2:
+        heat_df = mf[[
+            "Ticker", "MomentumScore", "QualityScore", "GrowthScore", "ValueScore", "TotalScore"
+        ]].set_index("Ticker")
+        fig = px.imshow(heat_df.T, aspect="auto", title="Factor Heatmap")
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.dataframe(mf[[
+        "Ticker", "Name",
+        "MomentumScore", "QualityScore", "GrowthScore", "ValueScore", "TotalScore"
+    ]], use_container_width=True)
