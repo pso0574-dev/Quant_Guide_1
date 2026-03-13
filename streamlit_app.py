@@ -9,10 +9,6 @@ Quant Strategy Pro Dashboard
 - Monthly return heatmap
 - Portfolio construction / risk contribution
 - Strategy learning tabs
-
-Run:
-    pip install -r requirements.txt
-    streamlit run streamlit_app.py
 """
 
 import numpy as np
@@ -55,10 +51,8 @@ TEXT = {
         "en": "Professional research-style quant dashboard with regime, ratios, portfolio, and advanced backtests.",
         "ko": "국면 분석, 비율 분석, 포트폴리오, 고급 백테스트를 포함한 전문가형 퀀트 대시보드입니다.",
     },
-    "app_settings": {"en": "App Settings", "ko": "앱 설정"},
     "market_settings": {"en": "Market Settings", "ko": "시장 설정"},
     "backtest_settings": {"en": "Backtest Settings", "ko": "백테스트 설정"},
-    "language": {"en": "Language", "ko": "언어"},
     "main_asset": {"en": "Main Asset", "ko": "주요 자산"},
     "custom_ticker": {"en": "Custom Ticker", "ko": "사용자 지정 티커"},
     "comparison_assets": {"en": "Comparison Assets", "ko": "비교 자산"},
@@ -128,21 +122,21 @@ TEXT = {
     "regime_desc": {
         "en": (
             "**Core idea**\n"
-            "A professional dashboard should classify the current market environment before applying any strategy.\n\n"
+            "Classify the current market environment before applying any strategy.\n\n"
             "**This panel combines**\n"
             "- Trend status of QQQ / SPY / IWM / TLT / GLD\n"
             "- Leadership ratios like IWM/QQQ and QQQ/SPY\n"
             "- Defensive vs offensive behavior\n"
-            "- Breadth-style participation using cross-asset confirmation"
+            "- Cross-asset confirmation"
         ),
         "ko": (
             "**핵심 개념**\n"
-            "전문가형 대시보드는 전략을 적용하기 전에 현재 시장 환경을 먼저 분류해야 합니다.\n\n"
+            "전략을 적용하기 전에 현재 시장 환경을 먼저 분류합니다.\n\n"
             "**이 패널은 다음을 결합합니다**\n"
             "- QQQ / SPY / IWM / TLT / GLD 추세 상태\n"
             "- IWM/QQQ, QQQ/SPY 같은 리더십 비율\n"
             "- 방어적 자산과 공격적 자산의 상대 강도\n"
-            "- 여러 자산의 동시 확인을 통한 breadth 스타일 판정"
+            "- 여러 자산의 동시 확인"
         ),
     },
     "regime_state": {"en": "Regime State", "ko": "국면 상태"},
@@ -167,21 +161,21 @@ TEXT = {
             "**Core idea**\n"
             "Relative ratios show leadership shifts better than absolute price charts.\n\n"
             "**Useful ratios**\n"
-            "- QQQ/SPY: growth vs broad market\n"
-            "- IWM/QQQ: small caps vs large-cap growth\n"
-            "- IWM/SPY: small caps vs large caps\n"
-            "- SPY/TLT: equities vs long bonds\n"
-            "- GLD/TLT: inflation/hedge preference vs duration"
+            "- QQQ/SPY\n"
+            "- IWM/QQQ\n"
+            "- IWM/SPY\n"
+            "- SPY/TLT\n"
+            "- GLD/TLT"
         ),
         "ko": (
             "**핵심 개념**\n"
             "상대 비율 차트는 절대 가격보다 리더십 변화를 더 잘 보여줍니다.\n\n"
             "**유용한 비율**\n"
-            "- QQQ/SPY: 성장주 vs 전체 시장\n"
-            "- IWM/QQQ: 소형주 vs 대형 성장주\n"
-            "- IWM/SPY: 소형주 vs 대형주\n"
-            "- SPY/TLT: 주식 vs 장기채\n"
-            "- GLD/TLT: 인플레이션/헤지 선호 vs 듀레이션"
+            "- QQQ/SPY\n"
+            "- IWM/QQQ\n"
+            "- IWM/SPY\n"
+            "- SPY/TLT\n"
+            "- GLD/TLT"
         ),
     },
     "trend_desc": {
@@ -190,38 +184,30 @@ TEXT = {
             "Follow the prevailing market direction using moving averages.\n\n"
             "**Simple rule**\n"
             "- Long when short MA > long MA\n"
-            "- Flat when short MA <= long MA\n\n"
-            "**Professional note**\n"
-            "In practice, evaluate not only CAGR but also drawdown, turnover, and cost-adjusted performance."
+            "- Flat when short MA <= long MA"
         ),
         "ko": (
             "**핵심 개념**\n"
             "이동평균으로 지배적인 시장 방향을 따라갑니다.\n\n"
             "**간단 룰**\n"
             "- 단기 MA > 장기 MA 이면 보유\n"
-            "- 단기 MA <= 장기 MA 이면 현금\n\n"
-            "**전문가 메모**\n"
-            "실전에서는 CAGR뿐 아니라 낙폭, 턴오버, 비용 반영 후 성과도 함께 봐야 합니다."
+            "- 단기 MA <= 장기 MA 이면 현금"
         ),
     },
     "meanrev_desc": {
         "en": (
             "**Core idea**\n"
-            "When price deviates too far below its rolling mean, it may revert upward.\n\n"
+            "If price deviates too far below its rolling mean, it may revert upward.\n\n"
             "**Simple rule**\n"
             "- Enter when Z-score < -threshold\n"
-            "- Exit when price recovers to the rolling mean\n\n"
-            "**Professional note**\n"
-            "Mean reversion often works better in choppy markets and can struggle in strong downtrends."
+            "- Exit when price recovers to the rolling mean"
         ),
         "ko": (
             "**핵심 개념**\n"
             "가격이 이동평균보다 과도하게 아래로 이탈하면 위로 되돌아올 수 있다고 가정합니다.\n\n"
             "**간단 룰**\n"
             "- Z-score < -임계값이면 진입\n"
-            "- 가격이 이동평균으로 회복하면 청산\n\n"
-            "**전문가 메모**\n"
-            "평균회귀는 횡보장에 강할 수 있지만 강한 하락 추세에서는 약할 수 있습니다."
+            "- 가격이 이동평균으로 회복하면 청산"
         ),
     },
     "momentum_desc": {
@@ -230,18 +216,14 @@ TEXT = {
             "Assets with positive recent returns often continue to outperform for some time.\n\n"
             "**Simple rule**\n"
             "- Long when lookback momentum > 0\n"
-            "- Flat when momentum <= 0\n\n"
-            "**Professional note**\n"
-            "Momentum can be powerful but is vulnerable to sharp reversals."
+            "- Flat when momentum <= 0"
         ),
         "ko": (
             "**핵심 개념**\n"
             "최근 수익률이 좋았던 자산이 일정 기간 계속 outperform할 수 있다고 가정합니다.\n\n"
             "**간단 룰**\n"
             "- 조회 기간 모멘텀 > 0이면 보유\n"
-            "- 모멘텀 <= 0이면 현금\n\n"
-            "**전문가 메모**\n"
-            "모멘텀은 강력할 수 있지만 급격한 반전에 취약합니다."
+            "- 모멘텀 <= 0이면 현금"
         ),
     },
     "rotation_desc": {
@@ -249,154 +231,86 @@ TEXT = {
             "**Core idea**\n"
             "Rotate into the strongest asset among several candidates.\n\n"
             "**Simple rule**\n"
-            "- Each period, select the asset with the highest lookback momentum\n"
-            "- Hold only that leader in the next period\n\n"
-            "**Professional note**\n"
-            "Rotation is most useful when asset regimes diverge clearly."
+            "- Select the asset with the highest lookback momentum\n"
+            "- Hold only that leader in the next period"
         ),
         "ko": (
             "**핵심 개념**\n"
             "여러 자산 중 가장 강한 자산으로 이동합니다.\n\n"
             "**간단 룰**\n"
-            "- 각 시점마다 조회 기간 모멘텀이 가장 높은 자산을 선택\n"
-            "- 다음 기간에는 그 자산만 보유\n\n"
-            "**전문가 메모**\n"
-            "자산 국면 차이가 뚜렷할 때 로테이션 전략의 효과가 더 잘 나타납니다."
+            "- 조회 기간 모멘텀이 가장 높은 자산을 선택\n"
+            "- 다음 기간에는 그 자산만 보유"
         ),
     },
     "voltarget_desc": {
         "en": (
             "**Core idea**\n"
-            "Scale exposure up or down to target a stable volatility level.\n\n"
-            "**Simple rule**\n"
-            "- Lower exposure when realized volatility rises\n"
-            "- Raise exposure when realized volatility falls\n\n"
-            "**Professional note**\n"
-            "Vol-targeting can smooth risk but may underperform in fast rallies after volatility spikes."
+            "Scale exposure up or down to target a stable volatility level."
         ),
         "ko": (
             "**핵심 개념**\n"
-            "안정적인 목표 변동성 수준을 유지하도록 비중을 조절합니다.\n\n"
-            "**간단 룰**\n"
-            "- 실현 변동성이 올라가면 비중 축소\n"
-            "- 실현 변동성이 내려가면 비중 확대\n\n"
-            "**전문가 메모**\n"
-            "변동성 타게팅은 위험을 완화할 수 있지만 급등 초반에는 덜 참여할 수 있습니다."
+            "안정적인 목표 변동성 수준을 유지하도록 비중을 조절합니다."
         ),
     },
     "riskparity_desc": {
         "en": (
             "**Core idea**\n"
-            "Allocate capital based on risk contribution, not nominal capital.\n\n"
-            "**Simple rule**\n"
-            "- Estimate recent volatility for each asset\n"
-            "- Assign larger weights to lower-volatility assets\n\n"
-            "**Professional note**\n"
-            "Risk parity usually needs multiple uncorrelated assets to work well."
+            "Allocate capital based on risk contribution, not nominal capital."
         ),
         "ko": (
             "**핵심 개념**\n"
-            "명목 금액이 아니라 위험 기여도 기준으로 자산을 배분합니다.\n\n"
-            "**간단 룰**\n"
-            "- 각 자산의 최근 변동성을 추정\n"
-            "- 변동성이 낮은 자산에 더 큰 비중 부여\n\n"
-            "**전문가 메모**\n"
-            "리스크 패리티는 상관관계가 낮은 여러 자산이 있을 때 효과가 더 좋습니다."
+            "명목 금액이 아니라 위험 기여도 기준으로 자산을 배분합니다."
         ),
     },
     "portfolio_desc": {
         "en": (
             "**Core idea**\n"
-            "Professional dashboards should translate signals into weights, risk budgets, and current allocation decisions.\n\n"
-            "**This tab shows**\n"
-            "- Signal by asset\n"
-            "- Suggested risk-scaled weights\n"
-            "- Risk contribution estimate\n"
-            "- Current target portfolio"
+            "Translate signals into weights, risk budgets, and current allocation decisions."
         ),
         "ko": (
             "**핵심 개념**\n"
-            "전문가형 대시보드는 신호를 실제 비중, 위험 예산, 현재 배분 결정으로 연결해야 합니다.\n\n"
-            "**이 탭은 다음을 보여줍니다**\n"
-            "- 자산별 신호\n"
-            "- 위험 조정 비중 제안\n"
-            "- 위험 기여도 추정\n"
-            "- 현재 목표 포트폴리오"
+            "신호를 실제 비중, 위험 예산, 현재 배분 결정으로 연결합니다."
         ),
     },
     "drawdown_desc": {
         "en": (
             "**Core idea**\n"
-            "Use drawdown zones to phase entries instead of buying all at once.\n\n"
-            "**Example**\n"
-            "- 0% to -5%: watch\n"
-            "- -5% to -10%: first buy\n"
-            "- -10% to -15%: second buy\n"
-            "- -15% to -20%: third buy\n"
-            "- Below -20%: high risk / high opportunity"
+            "Use drawdown zones to phase entries instead of buying all at once."
         ),
         "ko": (
             "**핵심 개념**\n"
-            "한 번에 매수하지 않고 낙폭 구간에 따라 분할 진입합니다.\n\n"
-            "**예시**\n"
-            "- 0% ~ -5%: 관찰\n"
-            "- -5% ~ -10%: 1차 매수\n"
-            "- -10% ~ -15%: 2차 매수\n"
-            "- -15% ~ -20%: 3차 매수\n"
-            "- -20% 이하: 고위험 / 고기회"
+            "한 번에 매수하지 않고 낙폭 구간에 따라 분할 진입합니다."
         ),
     },
     "multifactor_desc": {
         "en": (
             "**Core idea**\n"
-            "Combine multiple signals instead of relying on one factor alone.\n\n"
-            "**Factors used here**\n"
-            "- Momentum\n"
-            "- Low volatility\n"
-            "- Trend\n"
-            "- Quality proxy"
+            "Combine multiple signals instead of relying on one factor alone."
         ),
         "ko": (
             "**핵심 개념**\n"
-            "하나의 요인에만 의존하지 않고 여러 신호를 결합합니다.\n\n"
-            "**여기서 사용하는 요인**\n"
-            "- 모멘텀\n"
-            "- 저변동성\n"
-            "- 추세\n"
-            "- 퀄리티 대용지표"
+            "하나의 요인에만 의존하지 않고 여러 신호를 결합합니다."
         ),
     },
     "advanced_bt_desc": {
         "en": (
             "**Core idea**\n"
-            "A professional backtest should include costs, turnover, rolling metrics, and period breakdowns.\n\n"
-            "**This tab adds**\n"
-            "- Cost-adjusted strategy returns\n"
-            "- Turnover estimate\n"
-            "- Rolling Sharpe and rolling CAGR\n"
-            "- Monthly return heatmap"
+            "A professional backtest should include costs, turnover, rolling metrics, and period breakdowns."
         ),
         "ko": (
             "**핵심 개념**\n"
-            "전문가형 백테스트는 비용, 턴오버, 롤링 지표, 기간별 분해를 포함해야 합니다.\n\n"
-            "**이 탭은 다음을 추가합니다**\n"
-            "- 비용 반영 후 전략 수익률\n"
-            "- 턴오버 추정\n"
-            "- 롤링 샤프와 롤링 CAGR\n"
-            "- 월별 수익률 히트맵"
+            "전문가형 백테스트는 비용, 턴오버, 롤링 지표, 기간별 분해를 포함해야 합니다."
         ),
     },
     "summary_desc": {
         "en": (
             "**What this tab does**\n"
             "- Compares all strategies on the same asset base\n"
-            "- Shows final value, CAGR, Sharpe, Calmar, MDD, exposure, and turnover\n"
             "- Helps you judge not only return, but also the quality of the return"
         ),
         "ko": (
             "**이 탭의 역할**\n"
             "- 같은 자산 기반에서 여러 전략을 비교합니다\n"
-            "- 최종 자산, CAGR, Sharpe, Calmar, MDD, 노출도, 턴오버를 보여줍니다\n"
             "- 단순 수익률이 아니라 수익의 질까지 판단하도록 돕습니다"
         ),
     },
@@ -451,7 +365,6 @@ def tr(key: str) -> str:
     item = TEXT.get(key, {})
     en = item.get("en", key)
     ko = item.get("ko", key)
-
     if language_mode == "English":
         return en
     elif language_mode == "한국어":
@@ -463,7 +376,6 @@ def tr_tab(key: str) -> str:
     item = TEXT.get(key, {})
     en = item.get("en", key)
     ko = item.get("ko", key)
-
     if language_mode == "English":
         return en
     elif language_mode == "한국어":
@@ -706,7 +618,7 @@ def equity_stats(equity: pd.Series, annual_factor: int):
         "MDD": mdd_val,
     }
 
-def apply_costs(strategy_returns: pd.Series, position: pd.Series, cost_bps: float) -> tuple[pd.Series, pd.Series]:
+def apply_costs(strategy_returns: pd.Series, position: pd.Series, cost_bps: float):
     turnover = position.fillna(0).diff().abs().fillna(position.fillna(0).abs())
     cost_rate = cost_bps / 10000.0
     costs = turnover * cost_rate
@@ -864,11 +776,10 @@ def build_risk_parity(close_df: pd.DataFrame, vol_window_value: int, annual_fact
     eq_ret = (ew_w.shift(1).fillna(0) * returns).sum(axis=1)
 
     turnover_rp = shifted_weights.diff().abs().sum(axis=1).fillna(shifted_weights.abs().sum(axis=1))
-    turnover_eq = ew_w.shift(1).fillna(0).diff().abs().sum(axis=1).fillna(ew_w.shift(1).fillna(0).abs().sum(axis=1))
     cost_rate = cost_bps / 10000.0
 
     rp_net = rp_ret - turnover_rp * cost_rate
-    eq_net = eq_ret - turnover_eq * cost_rate
+    eq_net = eq_ret
 
     equity = pd.DataFrame(index=returns.index)
     equity["Risk_Parity_Raw"] = initial_capital_value * (1 + rp_ret).cumprod()
@@ -955,7 +866,7 @@ def get_monthly_heatmap_from_equity(equity: pd.Series) -> pd.DataFrame:
     if len(equity) < 3:
         return pd.DataFrame()
 
-    monthly = equity.resample("M").last().pct_change()
+    monthly = equity.resample("ME").last().pct_change()
     heat = monthly.to_frame("ret")
     heat["Year"] = heat.index.year
     heat["Month"] = heat.index.strftime("%b")
@@ -1016,7 +927,6 @@ def regime_engine(close_df: pd.DataFrame, annual_factor: int):
         }
 
     breadth_score = int(table[tr("above_ma200")].sum())
-
     leadership_score = 0
     defense_score = 0
 
@@ -1063,6 +973,9 @@ def regime_engine(close_df: pd.DataFrame, annual_factor: int):
         "table": table
     }
 
+# =========================================================
+# FIXED FUNCTION
+# =========================================================
 def build_portfolio_suggestion(close_df: pd.DataFrame, lookback_value: int, vol_window_value: int, annual_factor: int):
     if close_df.empty or close_df.shape[1] < 2:
         return pd.DataFrame(), pd.Series(dtype=float), pd.Series(dtype=float)
@@ -1070,39 +983,51 @@ def build_portfolio_suggestion(close_df: pd.DataFrame, lookback_value: int, vol_
     returns = close_df.pct_change()
     vol = returns.rolling(vol_window_value).std() * np.sqrt(annual_factor)
     latest_vol = vol.iloc[-1]
-    latest_mom = close_df.iloc[-1] / close_df.shift(lookback_value).iloc[-1] - 1
 
+    latest_mom = close_df.iloc[-1] / close_df.shift(lookback_value).iloc[-1] - 1
     signal = (latest_mom > 0).astype(float)
+
     inv_vol = 1 / latest_vol.replace(0, np.nan)
     raw_weight = signal * inv_vol
-    if raw_weight.sum(skipna=True) > 0:
+    raw_weight = raw_weight.replace([np.inf, -np.inf], np.nan).fillna(0)
+
+    if raw_weight.sum() > 0:
         weights = raw_weight / raw_weight.sum()
     else:
         weights = pd.Series(0.0, index=close_df.columns)
 
-    corr = returns.dropna().corr()
-    latest_ret = returns.dropna()
-    if latest_ret.empty:
+    ret_clean = returns.dropna(how="all").copy()
+    ret_clean = ret_clean.loc[:, close_df.columns]
+
+    if ret_clean.dropna(how="all").empty:
         risk_contrib = pd.Series(0.0, index=close_df.columns)
     else:
-        cov = latest_ret.cov() * annual_factor
-        w = weights.fillna(0).values.reshape(-1, 1)
-        port_var = float(w.T @ cov.values @ w) if len(cov) == len(weights) else np.nan
+        cov = ret_clean.cov() * annual_factor
+        cov = cov.reindex(index=close_df.columns, columns=close_df.columns).fillna(0)
+
+        w = weights.reindex(close_df.columns).fillna(0).values.astype(float)
+
+        try:
+            port_var = float(w @ cov.values @ w.T)
+        except Exception:
+            port_var = np.nan
+
         if pd.isna(port_var) or port_var <= 0:
             risk_contrib = pd.Series(0.0, index=close_df.columns)
         else:
             marginal = cov.values @ w
-            contrib = (w * marginal)[:, 0] / port_var
+            contrib = (w * marginal) / port_var
             risk_contrib = pd.Series(contrib, index=close_df.columns)
 
     signal_df = pd.DataFrame({
         tr("asset"): close_df.columns,
-        tr("signal"): signal.values,
-        tr("6m_momentum"): latest_mom.values,
-        tr("volatility"): latest_vol.values,
-        tr("current_target_weights"): weights.values,
+        tr("signal"): signal.reindex(close_df.columns).fillna(0).values,
+        tr("6m_momentum"): latest_mom.reindex(close_df.columns).values,
+        tr("volatility"): latest_vol.reindex(close_df.columns).values,
+        tr("current_target_weights"): weights.reindex(close_df.columns).values,
         tr("risk_contribution"): risk_contrib.reindex(close_df.columns).values
     })
+
     return signal_df, weights, risk_contrib
 
 # =========================================================
@@ -1146,10 +1071,17 @@ if ticker not in compare_tickers:
     compare_tickers = [ticker] + compare_tickers
 
 cmp_df = load_close_data(compare_tickers, period, interval)
-
 regime_assets = ["QQQ", "SPY", "IWM", "TLT", "GLD"]
 regime_close_df = load_close_data(regime_assets, period, interval)
 regime_result = regime_engine(regime_close_df, annual_factor)
+
+trend_bt = backtest_trend(df["Close"], ma_short, ma_long, initial_capital, trading_cost_bps, annual_factor)
+mr_bt = backtest_mean_reversion(df["Close"], mr_window, mr_z, initial_capital, trading_cost_bps, annual_factor)
+mom_bt = backtest_momentum(df["Close"], mom_lookback, initial_capital, trading_cost_bps, annual_factor)
+vol_bt = backtest_vol_target(df["Close"], vol_window, target_vol, annual_factor, initial_capital, trading_cost_bps)
+rotation_mom, rotation_bt = build_rotation_strategy(cmp_df, mom_lookback, initial_capital, trading_cost_bps)
+rp_weights, rp_equity, rp_turnover = build_risk_parity(cmp_df, vol_window, annual_factor, initial_capital, trading_cost_bps)
+signal_df, suggested_weights, risk_contrib = build_portfolio_suggestion(cmp_df, mom_lookback, vol_window, annual_factor)
 
 # =========================================================
 # Tabs
@@ -1237,16 +1169,6 @@ with tabs[1]:
         st.subheader(tr("asset_state_table"))
         st.dataframe(table_disp, use_container_width=True)
 
-    if not regime_close_df.empty:
-        norm = regime_close_df.copy()
-        for col in norm.columns:
-            norm[col] = normalize_series(norm[col])
-        fig = go.Figure()
-        for col in norm.columns:
-            fig.add_trace(go.Scatter(x=norm.index, y=norm[col], mode="lines", name=col))
-        fig.update_layout(height=450, title=tr("asset_state_table"))
-        st.plotly_chart(fig, use_container_width=True)
-
 # =========================================================
 # Relative Ratios
 # =========================================================
@@ -1282,8 +1204,6 @@ with tabs[2]:
 # =========================================================
 # Trend Following
 # =========================================================
-trend_bt = backtest_trend(df["Close"], ma_short, ma_long, initial_capital, trading_cost_bps, annual_factor)
-
 with tabs[3]:
     st.subheader(tr("trend_tab"))
     st.markdown(tr("trend_desc"))
@@ -1324,8 +1244,6 @@ with tabs[3]:
 # =========================================================
 # Mean Reversion
 # =========================================================
-mr_bt = backtest_mean_reversion(df["Close"], mr_window, mr_z, initial_capital, trading_cost_bps, annual_factor)
-
 with tabs[4]:
     st.subheader(tr("meanrev_tab"))
     st.markdown(tr("meanrev_desc"))
@@ -1368,8 +1286,6 @@ with tabs[4]:
 # =========================================================
 # Momentum
 # =========================================================
-mom_bt = backtest_momentum(df["Close"], mom_lookback, initial_capital, trading_cost_bps, annual_factor)
-
 with tabs[5]:
     st.subheader(tr("momentum_tab"))
     st.markdown(tr("momentum_desc"))
@@ -1400,8 +1316,6 @@ with tabs[5]:
 # =========================================================
 # Asset Rotation
 # =========================================================
-rotation_mom, rotation_bt = build_rotation_strategy(cmp_df, mom_lookback, initial_capital, trading_cost_bps)
-
 with tabs[6]:
     st.subheader(tr("rotation_tab"))
     st.markdown(tr("rotation_desc"))
@@ -1439,8 +1353,6 @@ with tabs[6]:
 # =========================================================
 # Volatility Targeting
 # =========================================================
-vol_bt = backtest_vol_target(df["Close"], vol_window, target_vol, annual_factor, initial_capital, trading_cost_bps)
-
 with tabs[7]:
     st.subheader(tr("voltarget_tab"))
     st.markdown(tr("voltarget_desc"))
@@ -1471,8 +1383,6 @@ with tabs[7]:
 # =========================================================
 # Risk Parity
 # =========================================================
-rp_weights, rp_equity, rp_turnover = build_risk_parity(cmp_df, vol_window, annual_factor, initial_capital, trading_cost_bps)
-
 with tabs[8]:
     st.subheader(tr("riskparity_tab"))
     st.markdown(tr("riskparity_desc"))
@@ -1505,8 +1415,6 @@ with tabs[8]:
 # =========================================================
 # Portfolio Construction
 # =========================================================
-signal_df, suggested_weights, risk_contrib = build_portfolio_suggestion(cmp_df, mom_lookback, vol_window, annual_factor)
-
 with tabs[9]:
     st.subheader(tr("portfolio_tab"))
     st.markdown(tr("portfolio_desc"))
@@ -1527,9 +1435,13 @@ with tabs[9]:
             st.plotly_chart(fig_w, use_container_width=True)
 
         with pie2:
-            fig_r = go.Figure(data=[go.Pie(labels=risk_contrib.index, values=np.clip(risk_contrib.fillna(0).values, 0, None), hole=0.4)])
-            fig_r.update_layout(height=420, title=tr("risk_contribution"))
-            st.plotly_chart(fig_r, use_container_width=True)
+            rc_vals = np.clip(risk_contrib.fillna(0).values, 0, None)
+            if np.nansum(rc_vals) == 0:
+                st.info(tr("not_enough_data"))
+            else:
+                fig_r = go.Figure(data=[go.Pie(labels=risk_contrib.index, values=rc_vals, hole=0.4)])
+                fig_r.update_layout(height=420, title=tr("risk_contribution"))
+                st.plotly_chart(fig_r, use_container_width=True)
 
 # =========================================================
 # Drawdown Buying
@@ -1662,13 +1574,21 @@ with tabs[12]:
         if show_monthly_heatmap:
             heat = get_monthly_heatmap_from_equity(trend_bt["Equity_Net"])
             if not heat.empty:
-                heat_vals = heat.copy()
+                z_vals = heat.values
+                text_vals = np.empty_like(z_vals, dtype=object)
+                for i in range(z_vals.shape[0]):
+                    for j in range(z_vals.shape[1]):
+                        if pd.isna(z_vals[i, j]):
+                            text_vals[i, j] = ""
+                        else:
+                            text_vals[i, j] = f"{z_vals[i, j]:.1%}"
+
                 fig3 = go.Figure(
                     data=go.Heatmap(
-                        z=heat_vals.values,
-                        x=heat_vals.columns,
-                        y=heat_vals.index.astype(str),
-                        text=np.where(pd.isna(heat_vals.values), "", np.vectorize(lambda v: f"{v:.1%}")(np.nan_to_num(heat_vals.values, nan=0.0))),
+                        z=z_vals,
+                        x=heat.columns,
+                        y=heat.index.astype(str),
+                        text=text_vals,
                         texttemplate="%{text}",
                         hovertemplate="Year=%{y}<br>Month=%{x}<br>Return=%{z:.2%}<extra></extra>"
                     )
