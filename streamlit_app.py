@@ -1,1110 +1,987 @@
-# streamlit_app.py
-# Nasdaq-100 Quant Screener
-# Streamlit Cloud friendly version
-# - No pd.read_html()
-# - Static Nasdaq-100 universe
-# - Tab-based strategies
-# - Evidence charts + stock tables
-# - English only
-
-import math
-import warnings
-from datetime import datetime, timezone
-
+# -*- coding: utf-8 -*-
 import numpy as np
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
-import streamlit as st
 import yfinance as yf
+import streamlit as st
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from datetime import datetime
 
-warnings.filterwarnings("ignore")
-
+# =========================================================
+# Page Config
+# =========================================================
 st.set_page_config(
-    page_title="Nasdaq-100 Quant Screener",
+    page_title="Quant Strategy Master Dashboard",
     page_icon="📈",
-    layout="wide",
+    layout="wide"
 )
 
-st.title("📈 Nasdaq-100 Quant Screener")
-st.caption("Momentum · Quality · Growth · Value · Defensive · Multi-Factor")
-
-
-# =========================================================
-# 1) STATIC NASDAQ-100 UNIVERSE
-# =========================================================
-@st.cache_data
-def get_nasdaq100_universe():
-    data = [
-        ("AAPL", "Apple"),
-        ("ABNB", "Airbnb"),
-        ("ADBE", "Adobe"),
-        ("ADI", "Analog Devices"),
-        ("ADP", "Automatic Data Processing"),
-        ("ADSK", "Autodesk"),
-        ("AEP", "American Electric Power"),
-        ("AMAT", "Applied Materials"),
-        ("AMD", "Advanced Micro Devices"),
-        ("AMGN", "Amgen"),
-        ("AMZN", "Amazon"),
-        ("ANSS", "Ansys"),
-        ("APP", "AppLovin"),
-        ("ARM", "Arm Holdings"),
-        ("ASML", "ASML"),
-        ("AZN", "AstraZeneca"),
-        ("BIIB", "Biogen"),
-        ("BKNG", "Booking Holdings"),
-        ("BKR", "Baker Hughes"),
-        ("CCEP", "Coca-Cola Europacific Partners"),
-        ("CDNS", "Cadence Design Systems"),
-        ("CDW", "CDW"),
-        ("CEG", "Constellation Energy"),
-        ("CHTR", "Charter Communications"),
-        ("CMCSA", "Comcast"),
-        ("COST", "Costco"),
-        ("CPRT", "Copart"),
-        ("CRWD", "CrowdStrike"),
-        ("CSCO", "Cisco"),
-        ("CSGP", "CoStar Group"),
-        ("CSX", "CSX"),
-        ("CTAS", "Cintas"),
-        ("CTSH", "Cognizant"),
-        ("DASH", "DoorDash"),
-        ("DDOG", "Datadog"),
-        ("DXCM", "DexCom"),
-        ("EA", "Electronic Arts"),
-        ("EXC", "Exelon"),
-        ("FANG", "Diamondback Energy"),
-        ("FAST", "Fastenal"),
-        ("FTNT", "Fortinet"),
-        ("GEHC", "GE HealthCare"),
-        ("GFS", "GlobalFoundries"),
-        ("GILD", "Gilead Sciences"),
-        ("GOOG", "Alphabet Class C"),
-        ("GOOGL", "Alphabet Class A"),
-        ("HON", "Honeywell"),
-        ("IDXX", "IDEXX Laboratories"),
-        ("INTC", "Intel"),
-        ("INTU", "Intuit"),
-        ("ISRG", "Intuitive Surgical"),
-        ("KDP", "Keurig Dr Pepper"),
-        ("KHC", "Kraft Heinz"),
-        ("KLAC", "KLA"),
-        ("LIN", "Linde"),
-        ("LRCX", "Lam Research"),
-        ("LULU", "Lululemon"),
-        ("MAR", "Marriott"),
-        ("MCHP", "Microchip Technology"),
-        ("MDB", "MongoDB"),
-        ("MDLZ", "Mondelez"),
-        ("MELI", "MercadoLibre"),
-        ("META", "Meta Platforms"),
-        ("MNST", "Monster Beverage"),
-        ("MRVL", "Marvell"),
-        ("MSFT", "Microsoft"),
-        ("MSTR", "MicroStrategy"),
-        ("MU", "Micron"),
-        ("NFLX", "Netflix"),
-        ("NVDA", "NVIDIA"),
-        ("NXPI", "NXP Semiconductors"),
-        ("ODFL", "Old Dominion Freight Line"),
-        ("ON", "ON Semiconductor"),
-        ("ORLY", "O'Reilly Automotive"),
-        ("PANW", "Palo Alto Networks"),
-        ("PAYX", "Paychex"),
-        ("PCAR", "PACCAR"),
-        ("PDD", "PDD Holdings"),
-        ("PEP", "PepsiCo"),
-        ("PLTR", "Palantir"),
-        ("PYPL", "PayPal"),
-        ("QCOM", "Qualcomm"),
-        ("REGN", "Regeneron"),
-        ("ROP", "Roper Technologies"),
-        ("ROST", "Ross Stores"),
-        ("SBUX", "Starbucks"),
-        ("SNPS", "Synopsys"),
-        ("TEAM", "Atlassian"),
-        ("TMUS", "T-Mobile"),
-        ("TSLA", "Tesla"),
-        ("TTD", "Trade Desk"),
-        ("TTWO", "Take-Two Interactive"),
-        ("TXN", "Texas Instruments"),
-        ("VRSK", "Verisk"),
-        ("VRTX", "Vertex Pharmaceuticals"),
-        ("WBD", "Warner Bros. Discovery"),
-        ("WDAY", "Workday"),
-        ("XEL", "Xcel Energy"),
-        ("ZS", "Zscaler"),
-    ]
-    return pd.DataFrame(data, columns=["Ticker", "Name"])
-
+st.title("📈 Quant Strategy Master Dashboard")
+st.caption("Learn 10 practical quant methods with charts, rules, and simple backtests")
 
 # =========================================================
-# 2) HELPERS
-# =========================================================
-def safe_div(a, b):
-    try:
-        if b is None or pd.isna(b) or b == 0:
-            return np.nan
-        return a / b
-    except Exception:
-        return np.nan
-
-
-def pct_rank(series, higher_is_better=True):
-    s = pd.to_numeric(series, errors="coerce").replace([np.inf, -np.inf], np.nan)
-    valid = s.notna()
-    out = pd.Series(np.nan, index=s.index, dtype=float)
-    if valid.sum() == 0:
-        return out
-    out.loc[valid] = s.loc[valid].rank(pct=True, ascending=not higher_is_better)
-    return out
-
-
-def winsorize_series(series, lower=0.02, upper=0.98):
-    s = pd.to_numeric(series, errors="coerce").copy()
-    if s.notna().sum() < 5:
-        return s
-    lo = s.quantile(lower)
-    hi = s.quantile(upper)
-    return s.clip(lo, hi)
-
-
-def fmt_pct(x):
-    if pd.isna(x):
-        return "N/A"
-    return f"{x:.2%}"
-
-
-def fmt_num(x, digits=2):
-    if pd.isna(x):
-        return "N/A"
-    return f"{x:,.{digits}f}"
-
-
-def fmt_money(x):
-    if pd.isna(x):
-        return "N/A"
-    if abs(x) >= 1e12:
-        return f"${x/1e12:.2f}T"
-    if abs(x) >= 1e9:
-        return f"${x/1e9:.2f}B"
-    if abs(x) >= 1e6:
-        return f"${x/1e6:.2f}M"
-    return f"${x:,.0f}"
-
-
-# =========================================================
-# 3) DATA DOWNLOAD
-# =========================================================
-@st.cache_data(ttl=3600, show_spinner=False)
-def download_price_data(tickers, period="2y"):
-    try:
-        data = yf.download(
-            tickers=tickers,
-            period=period,
-            interval="1d",
-            auto_adjust=True,
-            progress=False,
-            group_by="ticker",
-            threads=False,
-        )
-        return data
-    except Exception:
-        return pd.DataFrame()
-
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def download_benchmark(period="2y"):
-    try:
-        qqq = yf.download(
-            tickers="QQQ",
-            period=period,
-            interval="1d",
-            auto_adjust=True,
-            progress=False,
-            threads=False,
-        )
-        if qqq.empty:
-            return pd.DataFrame()
-        qqq = qqq.dropna().copy()
-        if isinstance(qqq.columns, pd.MultiIndex):
-            qqq.columns = qqq.columns.get_level_values(0)
-        return qqq
-    except Exception:
-        return pd.DataFrame()
-
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def download_fundamentals(tickers):
-    rows = []
-
-    for ticker in tickers:
-        row = {"Ticker": ticker}
-        try:
-            info = yf.Ticker(ticker).info
-
-            row.update(
-                {
-                    "MarketCap": info.get("marketCap", np.nan),
-                    "EnterpriseValue": info.get("enterpriseValue", np.nan),
-                    "TrailingPE": info.get("trailingPE", np.nan),
-                    "ForwardPE": info.get("forwardPE", np.nan),
-                    "PegRatio": info.get("pegRatio", np.nan),
-                    "PriceToBook": info.get("priceToBook", np.nan),
-                    "PriceToSales": info.get("priceToSalesTrailing12Months", np.nan),
-                    "EnterpriseToRevenue": info.get("enterpriseToRevenue", np.nan),
-                    "EnterpriseToEbitda": info.get("enterpriseToEbitda", np.nan),
-                    "ROE": info.get("returnOnEquity", np.nan),
-                    "ROA": info.get("returnOnAssets", np.nan),
-                    "OperatingMargin": info.get("operatingMargins", np.nan),
-                    "GrossMargin": info.get("grossMargins", np.nan),
-                    "ProfitMargin": info.get("profitMargins", np.nan),
-                    "RevenueGrowth": info.get("revenueGrowth", np.nan),
-                    "EpsGrowth": info.get("earningsGrowth", np.nan),
-                    "QuarterlyRevenueGrowth": info.get("quarterlyRevenueGrowth", np.nan),
-                    "DebtToEquity": info.get("debtToEquity", np.nan),
-                    "CurrentRatio": info.get("currentRatio", np.nan),
-                    "QuickRatio": info.get("quickRatio", np.nan),
-                    "Beta": info.get("beta", np.nan),
-                    "DividendYield": info.get("dividendYield", np.nan),
-                    "Sector": info.get("sector", "Unknown"),
-                    "Industry": info.get("industry", "Unknown"),
-                }
-            )
-        except Exception:
-            pass
-
-        rows.append(row)
-
-    return pd.DataFrame(rows)
-
-
-# =========================================================
-# 4) PRICE METRICS
-# =========================================================
-def extract_single_ticker_frame(price_data, ticker):
-    try:
-        if isinstance(price_data.columns, pd.MultiIndex):
-            if ticker not in price_data.columns.get_level_values(0):
-                return pd.DataFrame()
-            df = price_data[ticker].copy()
-        else:
-            df = price_data.copy()
-        df = df.dropna(how="all")
-        return df
-    except Exception:
-        return pd.DataFrame()
-
-
-def compute_metrics(price_data, tickers, benchmark_df):
-    rows = []
-
-    qqq_close = None
-    if not benchmark_df.empty and "Close" in benchmark_df.columns:
-        qqq_close = benchmark_df["Close"].dropna()
-
-    for ticker in tickers:
-        try:
-            df = extract_single_ticker_frame(price_data, ticker)
-            if df.empty or "Close" not in df.columns:
-                continue
-
-            df = df.dropna().copy()
-            close = df["Close"].astype(float).dropna()
-            volume = df["Volume"].astype(float).dropna() if "Volume" in df.columns else pd.Series(dtype=float)
-
-            if len(close) < 210:
-                continue
-
-            price = close.iloc[-1]
-            ma20 = close.rolling(20).mean().iloc[-1]
-            ma50 = close.rolling(50).mean().iloc[-1]
-            ma100 = close.rolling(100).mean().iloc[-1]
-            ma200 = close.rolling(200).mean().iloc[-1]
-
-            ret_1m = safe_div(price, close.iloc[-22]) - 1 if len(close) > 22 else np.nan
-            ret_3m = safe_div(price, close.iloc[-63]) - 1 if len(close) > 63 else np.nan
-            ret_6m = safe_div(price, close.iloc[-126]) - 1 if len(close) > 126 else np.nan
-            ret_12m = safe_div(price, close.iloc[-252]) - 1 if len(close) > 252 else np.nan
-
-            high_52w = close.tail(252).max() if len(close) >= 252 else close.max()
-            low_52w = close.tail(252).min() if len(close) >= 252 else close.min()
-            dist_52w_high = safe_div(price, high_52w) - 1
-            dist_52w_low = safe_div(price, low_52w) - 1
-
-            daily_ret = close.pct_change().dropna()
-            vol_1y = daily_ret.tail(252).std() * np.sqrt(252) if len(daily_ret) >= 20 else np.nan
-
-            running_max_1y = close.tail(252).cummax()
-            dd_1y_series = close.tail(252) / running_max_1y - 1
-            mdd_1y = dd_1y_series.min() if len(dd_1y_series) > 0 else np.nan
-
-            running_max_all = close.cummax()
-            dd_all_series = close / running_max_all - 1
-            mdd_all = dd_all_series.min() if len(dd_all_series) > 0 else np.nan
-
-            avg_dollar_volume_20d = (close * volume).tail(20).mean() if len(volume) > 0 else np.nan
-            avg_dollar_volume_63d = (close * volume).tail(63).mean() if len(volume) > 0 else np.nan
-
-            momentum_trend = int(price > ma50 and ma50 > ma200)
-            above_ma200 = int(price > ma200)
-            above_ma50 = int(price > ma50)
-
-            rs_vs_qqq_6m = np.nan
-            rs_vs_qqq_12m = np.nan
-            if qqq_close is not None and len(qqq_close) > 252:
-                qqq_ret_6m = safe_div(qqq_close.iloc[-1], qqq_close.iloc[-126]) - 1
-                qqq_ret_12m = safe_div(qqq_close.iloc[-1], qqq_close.iloc[-252]) - 1
-                rs_vs_qqq_6m = ret_6m - qqq_ret_6m if not pd.isna(ret_6m) and not pd.isna(qqq_ret_6m) else np.nan
-                rs_vs_qqq_12m = ret_12m - qqq_ret_12m if not pd.isna(ret_12m) and not pd.isna(qqq_ret_12m) else np.nan
-
-            atr_proxy = daily_ret.tail(20).abs().mean() * math.sqrt(252) if len(daily_ret) >= 20 else np.nan
-
-            rows.append(
-                {
-                    "Ticker": ticker,
-                    "Price": price,
-                    "MA20": ma20,
-                    "MA50": ma50,
-                    "MA100": ma100,
-                    "MA200": ma200,
-                    "Ret_1M": ret_1m,
-                    "Ret_3M": ret_3m,
-                    "Ret_6M": ret_6m,
-                    "Ret_12M": ret_12m,
-                    "High_52W": high_52w,
-                    "Low_52W": low_52w,
-                    "Dist_52W_High": dist_52w_high,
-                    "Dist_52W_Low": dist_52w_low,
-                    "Volatility_1Y": vol_1y,
-                    "MDD_1Y": mdd_1y,
-                    "MDD_All": mdd_all,
-                    "Avg_Dollar_Volume_20D": avg_dollar_volume_20d,
-                    "Avg_Dollar_Volume_63D": avg_dollar_volume_63d,
-                    "Trend_OK": momentum_trend,
-                    "Above_MA50": above_ma50,
-                    "Above_MA200": above_ma200,
-                    "RS_vs_QQQ_6M": rs_vs_qqq_6m,
-                    "RS_vs_QQQ_12M": rs_vs_qqq_12m,
-                    "ATR_Proxy": atr_proxy,
-                }
-            )
-        except Exception:
-            continue
-
-    return pd.DataFrame(rows)
-
-
-# =========================================================
-# 5) SCORING
-# =========================================================
-def build_scores(df):
-    x = df.copy()
-
-    score_cols = [
-        "Ret_6M", "Ret_12M", "Dist_52W_High", "RS_vs_QQQ_6M", "RS_vs_QQQ_12M",
-        "ROE", "ROA", "OperatingMargin", "GrossMargin", "ProfitMargin",
-        "RevenueGrowth", "EpsGrowth", "QuarterlyRevenueGrowth",
-        "ForwardPE", "PegRatio", "PriceToBook", "PriceToSales", "EnterpriseToEbitda",
-        "Volatility_1Y", "MDD_1Y", "Beta", "DividendYield", "DebtToEquity"
-    ]
-    for col in score_cols:
-        if col in x.columns:
-            x[col] = winsorize_series(x[col])
-
-    # Momentum
-    x["Score_Mom_12M"] = pct_rank(x["Ret_12M"], higher_is_better=True)
-    x["Score_Mom_6M"] = pct_rank(x["Ret_6M"], higher_is_better=True)
-    x["Score_RS_12M"] = pct_rank(x["RS_vs_QQQ_12M"], higher_is_better=True)
-    x["Score_RS_6M"] = pct_rank(x["RS_vs_QQQ_6M"], higher_is_better=True)
-    x["Score_HighDist"] = pct_rank(x["Dist_52W_High"], higher_is_better=True)
-    x["Score_Trend"] = (
-        0.6 * x["Trend_OK"].fillna(0) + 0.2 * x["Above_MA50"].fillna(0) + 0.2 * x["Above_MA200"].fillna(0)
-    )
-
-    x["MomentumScore"] = (
-        0.25 * x["Score_Mom_12M"].fillna(0) +
-        0.20 * x["Score_Mom_6M"].fillna(0) +
-        0.15 * x["Score_RS_12M"].fillna(0) +
-        0.10 * x["Score_RS_6M"].fillna(0) +
-        0.10 * x["Score_HighDist"].fillna(0) +
-        0.20 * x["Score_Trend"].fillna(0)
-    )
-
-    # Quality
-    x["Score_ROE"] = pct_rank(x["ROE"], higher_is_better=True)
-    x["Score_ROA"] = pct_rank(x["ROA"], higher_is_better=True)
-    x["Score_OpMargin"] = pct_rank(x["OperatingMargin"], higher_is_better=True)
-    x["Score_GrossMargin"] = pct_rank(x["GrossMargin"], higher_is_better=True)
-    x["Score_ProfitMargin"] = pct_rank(x["ProfitMargin"], higher_is_better=True)
-    x["Score_Debt"] = pct_rank(-x["DebtToEquity"], higher_is_better=True)
-    x["Score_CurrentRatio"] = pct_rank(x["CurrentRatio"], higher_is_better=True)
-
-    x["QualityScore"] = (
-        0.25 * x["Score_ROE"].fillna(0) +
-        0.10 * x["Score_ROA"].fillna(0) +
-        0.20 * x["Score_OpMargin"].fillna(0) +
-        0.15 * x["Score_GrossMargin"].fillna(0) +
-        0.10 * x["Score_ProfitMargin"].fillna(0) +
-        0.15 * x["Score_Debt"].fillna(0) +
-        0.05 * x["Score_CurrentRatio"].fillna(0)
-    )
-
-    # Growth
-    x["Score_RevGrowth"] = pct_rank(x["RevenueGrowth"], higher_is_better=True)
-    x["Score_EpsGrowth"] = pct_rank(x["EpsGrowth"], higher_is_better=True)
-    x["Score_QRevGrowth"] = pct_rank(x["QuarterlyRevenueGrowth"], higher_is_better=True)
-
-    x["GrowthScore"] = (
-        0.45 * x["Score_RevGrowth"].fillna(0) +
-        0.35 * x["Score_EpsGrowth"].fillna(0) +
-        0.20 * x["Score_QRevGrowth"].fillna(0)
-    )
-
-    # Value / reasonable growth
-    x["Score_ForwardPE"] = pct_rank(-x["ForwardPE"], higher_is_better=True)
-    x["Score_PEG"] = pct_rank(-x["PegRatio"], higher_is_better=True)
-    x["Score_PB"] = pct_rank(-x["PriceToBook"], higher_is_better=True)
-    x["Score_PS"] = pct_rank(-x["PriceToSales"], higher_is_better=True)
-    x["Score_EVEBITDA"] = pct_rank(-x["EnterpriseToEbitda"], higher_is_better=True)
-
-    x["ValueScore"] = (
-        0.35 * x["Score_ForwardPE"].fillna(0) +
-        0.30 * x["Score_PEG"].fillna(0) +
-        0.15 * x["Score_PB"].fillna(0) +
-        0.10 * x["Score_PS"].fillna(0) +
-        0.10 * x["Score_EVEBITDA"].fillna(0)
-    )
-
-    # Defensive
-    x["Score_Vol"] = pct_rank(-x["Volatility_1Y"], higher_is_better=True)
-    x["Score_MDD"] = pct_rank(x["MDD_1Y"], higher_is_better=True)
-    x["Score_Beta"] = pct_rank(-x["Beta"], higher_is_better=True)
-    x["Score_Div"] = pct_rank(x["DividendYield"], higher_is_better=True)
-    x["Score_AboveMA200"] = x["Above_MA200"].fillna(0)
-
-    x["DefensiveScore"] = (
-        0.35 * x["Score_Vol"].fillna(0) +
-        0.30 * x["Score_MDD"].fillna(0) +
-        0.20 * x["Score_Beta"].fillna(0) +
-        0.10 * x["Score_Div"].fillna(0) +
-        0.05 * x["Score_AboveMA200"].fillna(0)
-    )
-
-    # Total multi-factor
-    x["TotalScore"] = (
-        0.35 * x["MomentumScore"].fillna(0) +
-        0.30 * x["QualityScore"].fillna(0) +
-        0.20 * x["GrowthScore"].fillna(0) +
-        0.15 * x["ValueScore"].fillna(0)
-    )
-
-    x["Rank"] = x["TotalScore"].rank(ascending=False, method="min").astype("Int64")
-
-    return x
-
-
-# =========================================================
-# 6) CHART HELPERS
-# =========================================================
-def bar_chart(df, x_col, y_col, title, color_col=None):
-    fig = px.bar(
-        df,
-        x=x_col,
-        y=y_col,
-        color=color_col if color_col in df.columns else None,
-        title=title,
-        text_auto=".2f" if y_col.endswith("Score") else False,
-    )
-    fig.update_layout(height=450, xaxis_title="", yaxis_title=y_col)
-    return fig
-
-
-def scatter_chart(df, x_col, y_col, title, size_col=None, hover_cols=None):
-    if hover_cols is None:
-        hover_cols = ["Ticker", "Name"]
-    valid_cols = [c for c in hover_cols if c in df.columns]
-    fig = px.scatter(
-        df,
-        x=x_col,
-        y=y_col,
-        size=size_col if size_col in df.columns else None,
-        hover_data=valid_cols,
-        title=title,
-    )
-    fig.update_layout(height=450)
-    return fig
-
-
-def heatmap_scores(df, tickers_ordered):
-    view = df[df["Ticker"].isin(tickers_ordered)].copy()
-    view = view.set_index("Ticker").loc[tickers_ordered]
-
-    heat = view[
-        ["MomentumScore", "QualityScore", "GrowthScore", "ValueScore", "DefensiveScore", "TotalScore"]
-    ].T
-
-    fig = px.imshow(heat, aspect="auto", title="Factor Heatmap")
-    fig.update_layout(height=450)
-    return fig
-
-
-def plot_selected_stock(price_data, ticker):
-    df = extract_single_ticker_frame(price_data, ticker)
-    if df.empty or "Close" not in df.columns:
-        return go.Figure()
-
-    close = df["Close"].dropna().copy()
-    ma50 = close.rolling(50).mean()
-    ma200 = close.rolling(200).mean()
-
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=close.index, y=close, mode="lines", name="Close"))
-    fig.add_trace(go.Scatter(x=ma50.index, y=ma50, mode="lines", name="MA50"))
-    fig.add_trace(go.Scatter(x=ma200.index, y=ma200, mode="lines", name="MA200"))
-    fig.update_layout(
-        title=f"{ticker} Price Trend",
-        height=500,
-        xaxis_title="Date",
-        yaxis_title="Price",
-    )
-    return fig
-
-
-# =========================================================
-# 7) LOAD DATA
-# =========================================================
-with st.spinner("Loading universe and market data..."):
-    universe = get_nasdaq100_universe()
-    tickers = universe["Ticker"].tolist()
-
-    price_data = download_price_data(tickers, period="2y")
-    benchmark_df = download_benchmark(period="2y")
-    fundamentals = download_fundamentals(tickers)
-
-if price_data.empty:
-    st.error("Failed to download price data from Yahoo Finance.")
-    st.stop()
-
-with st.spinner("Calculating metrics and factor scores..."):
-    tech = compute_metrics(price_data, tickers, benchmark_df)
-    if tech.empty:
-        st.error("Price data was downloaded, but metric calculation returned no valid rows.")
-        st.stop()
-
-    df = tech.merge(fundamentals, on="Ticker", how="left").merge(universe, on="Ticker", how="left")
-    df = build_scores(df)
-
-# =========================================================
-# 8) SIDEBAR
+# Sidebar
 # =========================================================
 st.sidebar.header("Settings")
 
-top_n = st.sidebar.slider("Top N", min_value=5, max_value=30, value=15, step=1)
+preset_universe = {
+    "QQQ": "QQQ",
+    "SPY": "SPY",
+    "TLT": "TLT",
+    "GLD": "GLD",
+    "IWM": "IWM",
+    "Custom": None
+}
 
-min_dollar_volume = st.sidebar.number_input(
-    "Min Avg Dollar Volume (63D)",
-    min_value=0,
-    value=20_000_000,
-    step=5_000_000,
+asset_choice = st.sidebar.selectbox("Main Asset", list(preset_universe.keys()), index=0)
+
+if asset_choice == "Custom":
+    ticker = st.sidebar.text_input("Custom Ticker", value="QQQ").upper().strip()
+else:
+    ticker = preset_universe[asset_choice]
+
+comparison_assets = st.sidebar.multiselect(
+    "Comparison Assets",
+    ["QQQ", "SPY", "TLT", "GLD", "IWM"],
+    default=["QQQ", "SPY", "TLT", "GLD"]
 )
 
-only_above_ma200 = st.sidebar.checkbox("Only stocks above MA200", value=False)
+period = st.sidebar.selectbox(
+    "History Period",
+    ["1y", "2y", "3y", "5y", "10y", "max"],
+    index=4
+)
 
-sector_options = ["All"] + sorted([str(x) for x in df["Sector"].dropna().unique()])
-selected_sector = st.sidebar.selectbox("Sector", sector_options, index=0)
+interval = st.sidebar.selectbox(
+    "Interval",
+    ["1d", "1wk", "1mo"],
+    index=0
+)
 
-selected_detail_ticker = st.sidebar.selectbox("Detail chart ticker", sorted(df["Ticker"].tolist()))
+ma_short = st.sidebar.slider("Short MA", 10, 100, 50, 5)
+ma_long = st.sidebar.slider("Long MA", 50, 300, 200, 10)
+rsi_period = st.sidebar.slider("RSI Period", 5, 30, 14, 1)
+vol_window = st.sidebar.slider("Vol Window", 10, 100, 20, 5)
+mr_window = st.sidebar.slider("Mean Reversion Window", 10, 100, 20, 5)
+mr_z = st.sidebar.slider("MR Z Threshold", 0.5, 3.0, 1.5, 0.1)
+mom_lookback = st.sidebar.slider("Momentum Lookback", 20, 252, 126, 5)
+target_vol = st.sidebar.slider("Target Volatility", 0.05, 0.30, 0.12, 0.01)
+initial_capital = st.sidebar.number_input(
+    "Initial Capital",
+    min_value=1000,
+    max_value=10000000,
+    value=10000,
+    step=1000
+)
+show_signals = st.sidebar.checkbox("Show Buy/Sell Signals", value=True)
 
-st.sidebar.markdown("---")
-st.sidebar.write("**Scoring weights**")
-st.sidebar.write("Multi-Factor = 35% Momentum + 30% Quality + 20% Growth + 15% Value")
+# =========================================================
+# Helper Functions
+# =========================================================
+def get_annualization_factor(interval: str) -> int:
+    if interval == "1d":
+        return 252
+    elif interval == "1wk":
+        return 52
+    elif interval == "1mo":
+        return 12
+    return 252
 
-last_updated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-st.sidebar.markdown("---")
-st.sidebar.caption(f"Last refreshed: {last_updated}")
+def get_high_window(interval: str) -> int:
+    if interval == "1d":
+        return 252
+    elif interval == "1wk":
+        return 52
+    elif interval == "1mo":
+        return 12
+    return 252
 
-filtered = df.copy()
-filtered = filtered[filtered["Avg_Dollar_Volume_63D"].fillna(0) >= min_dollar_volume]
+@st.cache_data(ttl=3600)
+def load_data(ticker: str, period: str, interval: str) -> pd.DataFrame:
+    df = yf.download(
+        tickers=ticker,
+        period=period,
+        interval=interval,
+        auto_adjust=True,
+        progress=False,
+        threads=False
+    )
+    if df is None or df.empty:
+        return pd.DataFrame()
 
-if only_above_ma200:
-    filtered = filtered[filtered["Above_MA200"] == 1]
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = [col[0] for col in df.columns]
 
-if selected_sector != "All":
-    filtered = filtered[filtered["Sector"] == selected_sector]
+    df = df.rename(columns=str.title)
+    df = df.dropna(how="all")
+    return df
 
-if filtered.empty:
-    st.warning("No stocks match the current filters.")
+@st.cache_data(ttl=3600)
+def load_close_data(tickers: list, period: str, interval: str) -> pd.DataFrame:
+    frames = []
+    for t in tickers:
+        d = load_data(t, period, interval)
+        if not d.empty and "Close" in d.columns:
+            frames.append(d[["Close"]].rename(columns={"Close": t}))
+    if not frames:
+        return pd.DataFrame()
+    out = pd.concat(frames, axis=1).dropna(how="all")
+    return out
+
+def calc_rsi(series: pd.Series, period: int = 14) -> pd.Series:
+    delta = series.diff()
+    gain = delta.where(delta > 0, 0.0)
+    loss = -delta.where(delta < 0, 0.0)
+
+    avg_gain = gain.rolling(period, min_periods=period).mean()
+    avg_loss = loss.rolling(period, min_periods=period).mean()
+
+    rs = avg_gain / avg_loss.replace(0, np.nan)
+    rsi = 100 - (100 / (1 + rs))
+    rsi = rsi.where(avg_loss != 0, 100)
+    rsi = rsi.where(avg_gain != 0, 0)
+    rsi = rsi.where(~((avg_gain == 0) & (avg_loss == 0)), 50)
+    return rsi
+
+def calc_drawdown(series: pd.Series):
+    running_max = series.cummax()
+    drawdown = series / running_max - 1.0
+    mdd = drawdown.min()
+    return drawdown, mdd
+
+def calc_cagr(series: pd.Series, annual_factor: int) -> float:
+    series = series.dropna()
+    if len(series) < 2:
+        return np.nan
+    years = len(series) / annual_factor
+    if years <= 0:
+        return np.nan
+    return (series.iloc[-1] / series.iloc[0]) ** (1 / years) - 1
+
+def calc_sharpe(returns: pd.Series, annual_factor: int) -> float:
+    returns = returns.dropna()
+    if len(returns) < 2 or returns.std() == 0:
+        return np.nan
+    return (returns.mean() / returns.std()) * np.sqrt(annual_factor)
+
+def calc_sortino(returns: pd.Series, annual_factor: int) -> float:
+    returns = returns.dropna()
+    downside = returns[returns < 0]
+    if len(returns) < 2 or len(downside) < 2 or downside.std() == 0:
+        return np.nan
+    return (returns.mean() / downside.std()) * np.sqrt(annual_factor)
+
+def equity_stats(equity: pd.Series, annual_factor: int):
+    equity = equity.dropna()
+    if len(equity) < 2:
+        return np.nan, np.nan, np.nan
+    rets = equity.pct_change().dropna()
+    cagr = calc_cagr(equity, annual_factor)
+    sharpe = calc_sharpe(rets, annual_factor)
+    _, mdd = calc_drawdown(equity)
+    return cagr, sharpe, mdd
+
+def backtest_buy_hold(close: pd.Series, initial_capital: float) -> pd.Series:
+    close = close.dropna()
+    if close.empty:
+        return pd.Series(dtype=float)
+    return initial_capital * (close / close.iloc[0])
+
+def backtest_trend(close: pd.Series, ma_short: int, ma_long: int, initial_capital: float) -> pd.DataFrame:
+    close = close.dropna()
+    if len(close) < ma_long:
+        return pd.DataFrame()
+
+    bt = pd.DataFrame(index=close.index)
+    bt["Close"] = close
+    bt["MA_Short"] = close.rolling(ma_short).mean()
+    bt["MA_Long"] = close.rolling(ma_long).mean()
+    bt["Signal"] = np.where(bt["MA_Short"] > bt["MA_Long"], 1, 0)
+    bt["Position"] = bt["Signal"].shift(1).fillna(0)
+    bt["Return"] = bt["Close"].pct_change().fillna(0)
+    bt["Strategy_Return"] = bt["Position"] * bt["Return"]
+    bt["Equity"] = initial_capital * (1 + bt["Strategy_Return"]).cumprod()
+    bt["BuyHold_Equity"] = initial_capital * (1 + bt["Return"]).cumprod()
+    bt["Signal_Change"] = bt["Signal"].diff()
+    return bt
+
+def backtest_mean_reversion(close: pd.Series, window: int, z_entry: float, initial_capital: float) -> pd.DataFrame:
+    close = close.dropna()
+    if len(close) < window + 5:
+        return pd.DataFrame()
+
+    bt = pd.DataFrame(index=close.index)
+    bt["Close"] = close
+    bt["Mean"] = close.rolling(window).mean()
+    bt["Std"] = close.rolling(window).std()
+    bt["Z"] = (close - bt["Mean"]) / bt["Std"]
+
+    signal = []
+    in_pos = 0
+    for _, row in bt.iterrows():
+        z = row["Z"]
+        c = row["Close"]
+        m = row["Mean"]
+
+        if pd.isna(z) or pd.isna(m):
+            in_pos = 0
+            signal.append(0)
+            continue
+
+        if in_pos == 0 and z < -z_entry:
+            in_pos = 1
+        elif in_pos == 1 and c >= m:
+            in_pos = 0
+        signal.append(in_pos)
+
+    bt["Signal"] = signal
+    bt["Position"] = bt["Signal"].shift(1).fillna(0)
+    bt["Return"] = bt["Close"].pct_change().fillna(0)
+    bt["Strategy_Return"] = bt["Position"] * bt["Return"]
+    bt["Equity"] = initial_capital * (1 + bt["Strategy_Return"]).cumprod()
+    bt["BuyHold_Equity"] = initial_capital * (1 + bt["Return"]).cumprod()
+    bt["Signal_Change"] = bt["Signal"].diff()
+    return bt
+
+def backtest_momentum(close: pd.Series, lookback: int, initial_capital: float) -> pd.DataFrame:
+    close = close.dropna()
+    if len(close) < lookback + 5:
+        return pd.DataFrame()
+
+    bt = pd.DataFrame(index=close.index)
+    bt["Close"] = close
+    bt["Momentum"] = close / close.shift(lookback) - 1
+    bt["Signal"] = np.where(bt["Momentum"] > 0, 1, 0)
+    bt["Position"] = bt["Signal"].shift(1).fillna(0)
+    bt["Return"] = bt["Close"].pct_change().fillna(0)
+    bt["Strategy_Return"] = bt["Position"] * bt["Return"]
+    bt["Equity"] = initial_capital * (1 + bt["Strategy_Return"]).cumprod()
+    bt["BuyHold_Equity"] = initial_capital * (1 + bt["Return"]).cumprod()
+    return bt
+
+def backtest_vol_target(close: pd.Series, vol_window: int, target_vol: float, annual_factor: int, initial_capital: float) -> pd.DataFrame:
+    close = close.dropna()
+    if len(close) < vol_window + 5:
+        return pd.DataFrame()
+
+    bt = pd.DataFrame(index=close.index)
+    bt["Close"] = close
+    bt["Return"] = close.pct_change().fillna(0)
+    realized_vol = bt["Return"].rolling(vol_window).std() * np.sqrt(annual_factor)
+    bt["Realized_Vol"] = realized_vol
+    bt["Leverage"] = (target_vol / bt["Realized_Vol"]).clip(upper=2.0)
+    bt["Leverage"] = bt["Leverage"].replace([np.inf, -np.inf], np.nan).fillna(0)
+    bt["Strategy_Return"] = bt["Leverage"].shift(1).fillna(0) * bt["Return"]
+    bt["Equity"] = initial_capital * (1 + bt["Strategy_Return"]).cumprod()
+    bt["BuyHold_Equity"] = initial_capital * (1 + bt["Return"]).cumprod()
+    return bt
+
+def build_risk_parity(close_df: pd.DataFrame, vol_window: int, annual_factor: int, initial_capital: float):
+    close_df = close_df.dropna(how="all")
+    if close_df.empty or close_df.shape[1] < 2:
+        return pd.DataFrame(), pd.DataFrame()
+
+    returns = close_df.pct_change().fillna(0)
+    vol = returns.rolling(vol_window).std() * np.sqrt(annual_factor)
+    inv_vol = 1 / vol.replace(0, np.nan)
+    weights = inv_vol.div(inv_vol.sum(axis=1), axis=0).fillna(0)
+
+    rp_ret = (weights.shift(1).fillna(0) * returns).sum(axis=1)
+    eq_ret = returns.mean(axis=1)
+
+    equity = pd.DataFrame(index=returns.index)
+    equity["Risk_Parity"] = initial_capital * (1 + rp_ret).cumprod()
+    equity["Equal_Weight"] = initial_capital * (1 + eq_ret).cumprod()
+    return weights, equity
+
+def build_rotation_strategy(close_df: pd.DataFrame, lookback: int, initial_capital: float):
+    close_df = close_df.dropna(how="all")
+    if close_df.empty or close_df.shape[1] < 2:
+        return pd.DataFrame(), pd.Series(dtype=float)
+
+    momentum = close_df / close_df.shift(lookback) - 1
+    leader = momentum.idxmax(axis=1)
+    returns = close_df.pct_change().fillna(0)
+
+    rot_ret = pd.Series(0.0, index=close_df.index)
+    for i in range(1, len(close_df)):
+        chosen = leader.iloc[i - 1]
+        if pd.notna(chosen):
+            rot_ret.iloc[i] = returns.iloc[i][chosen]
+
+    equity = initial_capital * (1 + rot_ret).cumprod()
+    out = pd.DataFrame(index=close_df.index)
+    out["Leader"] = leader
+    out["Rotation_Return"] = rot_ret
+    out["Rotation_Equity"] = equity
+    return momentum, out
+
+def latest_factor_score(df: pd.DataFrame, mom_lookback: int, vol_window: int):
+    d = df.copy()
+    d["Momentum"] = d["Close"] / d["Close"].shift(mom_lookback) - 1
+    d["Volatility"] = d["Close"].pct_change().rolling(vol_window).std()
+    d["MA50"] = d["Close"].rolling(50).mean()
+    d["MA200"] = d["Close"].rolling(200).mean()
+    d["Quality_Proxy"] = d["Close"] / d["Close"].rolling(252).min() - 1
+
+    latest = d.iloc[-1]
+    score = 0
+    reasons = []
+
+    if pd.notna(latest["Momentum"]) and latest["Momentum"] > 0:
+        score += 1
+        reasons.append("Positive momentum")
+    else:
+        reasons.append("Weak momentum")
+
+    if pd.notna(latest["Volatility"]):
+        vol_med = d["Volatility"].median()
+        if latest["Volatility"] < vol_med:
+            score += 1
+            reasons.append("Below-median volatility")
+        else:
+            reasons.append("Above-median volatility")
+
+    if pd.notna(latest["MA50"]) and pd.notna(latest["MA200"]) and latest["MA50"] > latest["MA200"]:
+        score += 1
+        reasons.append("Trend confirmed")
+    else:
+        reasons.append("Trend not confirmed")
+
+    if pd.notna(latest["Quality_Proxy"]):
+        q_med = d["Quality_Proxy"].median()
+        if latest["Quality_Proxy"] > q_med:
+            score += 1
+            reasons.append("Quality proxy strong")
+        else:
+            reasons.append("Quality proxy weak")
+
+    return score, reasons, d
+
+# =========================================================
+# Data Load
+# =========================================================
+annual_factor = get_annualization_factor(interval)
+high_window = get_high_window(interval)
+
+df = load_data(ticker, period, interval)
+
+if df.empty:
+    st.error("No data loaded. Please check ticker or try again later.")
     st.stop()
 
-# =========================================================
-# 9) TOP SUMMARY
-# =========================================================
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Universe Size", len(filtered))
-c2.metric("Top Multi-Factor", filtered.sort_values("TotalScore", ascending=False).iloc[0]["Ticker"])
-c3.metric("Top Momentum", filtered.sort_values("MomentumScore", ascending=False).iloc[0]["Ticker"])
-c4.metric("Top Quality", filtered.sort_values("QualityScore", ascending=False).iloc[0]["Ticker"])
+required_cols = ["Open", "High", "Low", "Close", "Volume"]
+for c in required_cols:
+    if c not in df.columns:
+        st.error(f"Missing column: {c}")
+        st.stop()
+
+df["MA_Short"] = df["Close"].rolling(ma_short).mean()
+df["MA_Long"] = df["Close"].rolling(ma_long).mean()
+df["RSI"] = calc_rsi(df["Close"], rsi_period)
+df["Return"] = df["Close"].pct_change()
+df["Volatility"] = df["Return"].rolling(vol_window).std() * np.sqrt(annual_factor)
+df["ATH"] = df["Close"].cummax()
+df["Distance_from_ATH"] = df["Close"] / df["ATH"] - 1
+df["52W_High"] = df["Close"].rolling(high_window).max()
+df["Distance_from_52W_High"] = df["Close"] / df["52W_High"] - 1
+df["Rolling_Mean_MR"] = df["Close"].rolling(mr_window).mean()
+df["Rolling_Std_MR"] = df["Close"].rolling(mr_window).std()
+df["ZScore_MR"] = (df["Close"] - df["Rolling_Mean_MR"]) / df["Rolling_Std_MR"]
+df["Momentum"] = df["Close"] / df["Close"].shift(mom_lookback) - 1
+
+drawdown, mdd = calc_drawdown(df["Close"])
+df["Drawdown"] = drawdown
+latest = df.iloc[-1]
+
+compare_tickers = list(dict.fromkeys(comparison_assets))
+if ticker not in compare_tickers:
+    compare_tickers = [ticker] + compare_tickers
+
+cmp_df = load_close_data(compare_tickers, period, interval)
 
 # =========================================================
-# 10) TABS
+# Tabs
 # =========================================================
-tabs = st.tabs(
-    [
-        "Overview",
-        "Momentum",
-        "Quality",
-        "Growth",
-        "Value",
-        "Defensive",
-        "Multi-Factor",
-        "Detail Chart",
-    ]
-)
+tabs = st.tabs([
+    "Overview",
+    "1. Trend Following",
+    "2. Mean Reversion",
+    "3. Momentum",
+    "4. Relative Momentum",
+    "5. Volatility Targeting",
+    "6. Risk Parity",
+    "7. Drawdown Buying",
+    "8. Multi-Factor",
+    "9. Strategy Summary"
+])
 
-# ---------------------------------------------------------
-# TAB 1: OVERVIEW
-# ---------------------------------------------------------
+# =========================================================
+# 0. Overview
+# =========================================================
 with tabs[0]:
-    st.subheader("Universe Overview")
-    st.write("Broad view of Nasdaq-100 candidates after liquidity and trend filters.")
+    st.subheader(f"{ticker} Overview")
 
-    col1, col2 = st.columns(2)
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    c1.metric("Last Price", f"{latest['Close']:,.2f}")
+    c2.metric("RSI", f"{latest['RSI']:.1f}" if pd.notna(latest["RSI"]) else "N/A")
+    c3.metric("Volatility", f"{latest['Volatility']:.2%}" if pd.notna(latest["Volatility"]) else "N/A")
+    c4.metric("Drawdown", f"{latest['Drawdown']:.2%}" if pd.notna(latest["Drawdown"]) else "N/A")
+    c5.metric("From ATH", f"{latest['Distance_from_ATH']:.2%}" if pd.notna(latest["Distance_from_ATH"]) else "N/A")
+    c6.metric("From 52W High", f"{latest['Distance_from_52W_High']:.2%}" if pd.notna(latest["Distance_from_52W_High"]) else "N/A")
 
-    overview_top = filtered.sort_values("Ret_12M", ascending=False).head(top_n)
-    with col1:
-        st.plotly_chart(
-            bar_chart(overview_top, "Ticker", "Ret_12M", f"Top {top_n} by 12M Return"),
-            use_container_width=True,
-        )
+    cagr = calc_cagr(df["Close"], annual_factor)
+    sharpe = calc_sharpe(df["Return"], annual_factor)
+    sortino = calc_sortino(df["Return"], annual_factor)
 
-    with col2:
-        st.plotly_chart(
-            scatter_chart(
-                filtered,
-                "Ret_6M",
-                "Ret_12M",
-                "6M vs 12M Return",
-                size_col="MarketCap",
-                hover_cols=["Ticker", "Name", "Sector"],
-            ),
-            use_container_width=True,
-        )
+    d1, d2, d3 = st.columns(3)
+    d1.metric("CAGR", f"{cagr:.2%}" if pd.notna(cagr) else "N/A")
+    d2.metric("Sharpe", f"{sharpe:.2f}" if pd.notna(sharpe) else "N/A")
+    d3.metric("Max Drawdown", f"{mdd:.2%}" if pd.notna(mdd) else "N/A")
 
-    sector_df = (
-        filtered.groupby("Sector", dropna=False)["Ticker"]
-        .count()
-        .reset_index(name="Count")
-        .sort_values("Count", ascending=False)
-    )
-    st.plotly_chart(
-        px.pie(sector_df, names="Sector", values="Count", title="Sector Distribution"),
-        use_container_width=True,
+    st.markdown(
+        """
+**이 탭에서 배우는 것**
+- 현재 자산의 추세, 과열/과매도, 낙폭, 변동성
+- 투자 판단 전에 가장 먼저 확인해야 할 핵심 상태
+"""
     )
 
-    show_cols = [
-        "Ticker", "Name", "Sector", "Price", "Ret_1M", "Ret_3M", "Ret_6M", "Ret_12M",
-        "MA50", "MA200", "Avg_Dollar_Volume_63D", "MarketCap", "Rank"
-    ]
-    show_cols = [c for c in show_cols if c in filtered.columns]
-
-    display_df = filtered.sort_values("TotalScore", ascending=False)[show_cols].copy()
-
-    st.dataframe(
-        display_df,
-        use_container_width=True,
-        hide_index=True,
+    fig = make_subplots(
+        rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.05,
+        row_heights=[0.5, 0.25, 0.25],
+        subplot_titles=(f"{ticker} Price", "RSI", "Drawdown")
     )
+    fig.add_trace(go.Scatter(x=df.index, y=df["Close"], mode="lines", name="Close"), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df.index, y=df["MA_Short"], mode="lines", name=f"MA {ma_short}"), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df.index, y=df["MA_Long"], mode="lines", name=f"MA {ma_long}"), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df.index, y=df["RSI"], mode="lines", name="RSI"), row=2, col=1)
+    fig.add_hline(y=70, row=2, col=1, line_dash="dash")
+    fig.add_hline(y=30, row=2, col=1, line_dash="dash")
+    fig.add_trace(go.Scatter(x=df.index, y=df["Drawdown"], mode="lines", fill="tozeroy", name="Drawdown"), row=3, col=1)
+    fig.update_layout(height=820, title=f"{ticker} Overview")
+    fig.update_yaxes(title_text="Price", row=1, col=1)
+    fig.update_yaxes(title_text="RSI", range=[0, 100], row=2, col=1)
+    fig.update_yaxes(title_text="DD", tickformat=".0%", row=3, col=1)
+    st.plotly_chart(fig, use_container_width=True)
 
-# ---------------------------------------------------------
-# TAB 2: MOMENTUM
-# ---------------------------------------------------------
+# =========================================================
+# 1. Trend Following
+# =========================================================
 with tabs[1]:
-    st.subheader("Momentum Strategy")
-    st.write(
-        "Logic: favor strong 6M/12M trend, relative strength vs QQQ, price near 52-week high, and price above key moving averages."
+    st.subheader("Trend Following")
+
+    st.markdown(
+        """
+**핵심 개념**  
+오르는 자산은 한동안 더 오르고, 약한 자산은 더 약해질 수 있다는 가정입니다.
+
+**간단 룰**  
+- 진입: Short MA > Long MA  
+- 이탈: Short MA <= Long MA
+"""
     )
 
-    mom = filtered.sort_values("MomentumScore", ascending=False).head(top_n).copy()
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.plotly_chart(
-            bar_chart(mom, "Ticker", "MomentumScore", f"Top {top_n} Momentum Ranking"),
-            use_container_width=True,
-        )
-    with col2:
-        st.plotly_chart(
-            scatter_chart(
-                filtered,
-                "Ret_6M",
-                "Ret_12M",
-                "Momentum Evidence: 6M vs 12M",
-                size_col="MomentumScore",
-                hover_cols=["Ticker", "Name", "RS_vs_QQQ_12M"],
-            ),
-            use_container_width=True,
-        )
-
-    col3, col4 = st.columns(2)
-    with col3:
-        st.plotly_chart(
-            bar_chart(
-                mom.sort_values("Dist_52W_High", ascending=False),
-                "Ticker",
-                "Dist_52W_High",
-                "Distance from 52-Week High",
-            ),
-            use_container_width=True,
-        )
-    with col4:
-        st.plotly_chart(
-            scatter_chart(
-                filtered,
-                "RS_vs_QQQ_6M",
-                "RS_vs_QQQ_12M",
-                "Relative Strength vs QQQ",
-                size_col="MomentumScore",
-                hover_cols=["Ticker", "Name"],
-            ),
-            use_container_width=True,
-        )
-
-    mom_cols = [
-        "Ticker", "Name", "Sector", "Price", "Ret_6M", "Ret_12M",
-        "RS_vs_QQQ_6M", "RS_vs_QQQ_12M", "Dist_52W_High",
-        "Trend_OK", "Above_MA200", "MomentumScore"
-    ]
-    st.dataframe(mom[mom_cols], use_container_width=True, hide_index=True)
-
-# ---------------------------------------------------------
-# TAB 3: QUALITY
-# ---------------------------------------------------------
-with tabs[2]:
-    st.subheader("Quality Strategy")
-    st.write(
-        "Logic: favor high ROE/ROA, strong margins, and cleaner balance sheet characteristics."
-    )
-
-    q = filtered.sort_values("QualityScore", ascending=False).head(top_n).copy()
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.plotly_chart(
-            bar_chart(q, "Ticker", "ROE", f"Top {top_n} by ROE"),
-            use_container_width=True,
-        )
-    with col2:
-        st.plotly_chart(
-            scatter_chart(
-                filtered,
-                "ROE",
-                "OperatingMargin",
-                "ROE vs Operating Margin",
-                size_col="QualityScore",
-                hover_cols=["Ticker", "Name", "DebtToEquity"],
-            ),
-            use_container_width=True,
-        )
-
-    col3, col4 = st.columns(2)
-    with col3:
-        st.plotly_chart(
-            scatter_chart(
-                filtered,
-                "GrossMargin",
-                "ProfitMargin",
-                "Gross Margin vs Profit Margin",
-                size_col="QualityScore",
-                hover_cols=["Ticker", "Name"],
-            ),
-            use_container_width=True,
-        )
-    with col4:
-        st.plotly_chart(
-            bar_chart(
-                q.sort_values("DebtToEquity", ascending=True),
-                "Ticker",
-                "DebtToEquity",
-                "Debt to Equity",
-            ),
-            use_container_width=True,
-        )
-
-    q_cols = [
-        "Ticker", "Name", "Sector", "ROE", "ROA",
-        "OperatingMargin", "GrossMargin", "ProfitMargin",
-        "DebtToEquity", "CurrentRatio", "QualityScore"
-    ]
-    st.dataframe(q[q_cols], use_container_width=True, hide_index=True)
-
-# ---------------------------------------------------------
-# TAB 4: GROWTH
-# ---------------------------------------------------------
-with tabs[3]:
-    st.subheader("Growth Strategy")
-    st.write(
-        "Logic: favor revenue growth, earnings growth, and recent quarterly revenue acceleration."
-    )
-
-    g = filtered.sort_values("GrowthScore", ascending=False).head(top_n).copy()
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.plotly_chart(
-            bar_chart(g, "Ticker", "RevenueGrowth", f"Top {top_n} Revenue Growth"),
-            use_container_width=True,
-        )
-    with col2:
-        st.plotly_chart(
-            scatter_chart(
-                filtered,
-                "RevenueGrowth",
-                "EpsGrowth",
-                "Revenue Growth vs EPS Growth",
-                size_col="GrowthScore",
-                hover_cols=["Ticker", "Name", "QuarterlyRevenueGrowth"],
-            ),
-            use_container_width=True,
-        )
-
-    col3, col4 = st.columns(2)
-    with col3:
-        st.plotly_chart(
-            bar_chart(g, "Ticker", "QuarterlyRevenueGrowth", "Quarterly Revenue Growth"),
-            use_container_width=True,
-        )
-    with col4:
-        st.plotly_chart(
-            scatter_chart(
-                filtered,
-                "RevenueGrowth",
-                "Ret_12M",
-                "Growth vs 12M Return",
-                size_col="GrowthScore",
-                hover_cols=["Ticker", "Name"],
-            ),
-            use_container_width=True,
-        )
-
-    g_cols = [
-        "Ticker", "Name", "Sector",
-        "RevenueGrowth", "EpsGrowth", "QuarterlyRevenueGrowth", "GrowthScore"
-    ]
-    st.dataframe(g[g_cols], use_container_width=True, hide_index=True)
-
-# ---------------------------------------------------------
-# TAB 5: VALUE
-# ---------------------------------------------------------
-with tabs[4]:
-    st.subheader("Value / Reasonable Growth")
-    st.write(
-        "Logic: within Nasdaq-100, pure deep value is rare. This tab looks for comparatively cheaper growth names using Forward PE, PEG, P/B, P/S, and EV/EBITDA."
-    )
-
-    v = filtered.sort_values("ValueScore", ascending=False).head(top_n).copy()
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.plotly_chart(
-            bar_chart(v, "Ticker", "ForwardPE", f"Top {top_n} by Value Score"),
-            use_container_width=True,
-        )
-    with col2:
-        st.plotly_chart(
-            scatter_chart(
-                filtered,
-                "ForwardPE",
-                "EpsGrowth",
-                "Forward PE vs EPS Growth",
-                size_col="ValueScore",
-                hover_cols=["Ticker", "Name", "PegRatio"],
-            ),
-            use_container_width=True,
-        )
-
-    col3, col4 = st.columns(2)
-    with col3:
-        st.plotly_chart(
-            scatter_chart(
-                filtered,
-                "PriceToSales",
-                "OperatingMargin",
-                "Price/Sales vs Operating Margin",
-                size_col="ValueScore",
-                hover_cols=["Ticker", "Name"],
-            ),
-            use_container_width=True,
-        )
-    with col4:
-        st.plotly_chart(
-            bar_chart(v, "Ticker", "PegRatio", "PEG Ratio"),
-            use_container_width=True,
-        )
-
-    v_cols = [
-        "Ticker", "Name", "Sector", "ForwardPE", "TrailingPE",
-        "PegRatio", "PriceToBook", "PriceToSales", "EnterpriseToEbitda", "ValueScore"
-    ]
-    st.dataframe(v[v_cols], use_container_width=True, hide_index=True)
-
-# ---------------------------------------------------------
-# TAB 6: DEFENSIVE
-# ---------------------------------------------------------
-with tabs[5]:
-    st.subheader("Defensive Strategy")
-    st.write(
-        "Logic: favor lower volatility, smaller drawdown, lower beta, and stable price behavior."
-    )
-
-    d = filtered.sort_values("DefensiveScore", ascending=False).head(top_n).copy()
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.plotly_chart(
-            bar_chart(d, "Ticker", "Volatility_1Y", f"Top {top_n} Defensive Ranking"),
-            use_container_width=True,
-        )
-    with col2:
-        st.plotly_chart(
-            scatter_chart(
-                filtered,
-                "Volatility_1Y",
-                "Ret_12M",
-                "Return vs Volatility",
-                size_col="DefensiveScore",
-                hover_cols=["Ticker", "Name", "Beta"],
-            ),
-            use_container_width=True,
-        )
-
-    col3, col4 = st.columns(2)
-    with col3:
-        st.plotly_chart(
-            bar_chart(
-                d.sort_values("MDD_1Y", ascending=False),
-                "Ticker",
-                "MDD_1Y",
-                "1Y Max Drawdown",
-            ),
-            use_container_width=True,
-        )
-    with col4:
-        st.plotly_chart(
-            scatter_chart(
-                filtered,
-                "Beta",
-                "MDD_1Y",
-                "Beta vs Max Drawdown",
-                size_col="DefensiveScore",
-                hover_cols=["Ticker", "Name"],
-            ),
-            use_container_width=True,
-        )
-
-    d_cols = [
-        "Ticker", "Name", "Sector", "Volatility_1Y",
-        "MDD_1Y", "Beta", "DividendYield", "Above_MA200", "DefensiveScore"
-    ]
-    st.dataframe(d[d_cols], use_container_width=True, hide_index=True)
-
-# ---------------------------------------------------------
-# TAB 7: MULTI-FACTOR
-# ---------------------------------------------------------
-with tabs[6]:
-    st.subheader("Multi-Factor Ranking")
-    st.write(
-        "Practical blend: 35% Momentum + 30% Quality + 20% Growth + 15% Value."
-    )
-
-    mf = filtered.sort_values("TotalScore", ascending=False).head(top_n).copy()
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.plotly_chart(
-            bar_chart(mf, "Ticker", "TotalScore", f"Top {top_n} Multi-Factor"),
-            use_container_width=True,
-        )
-    with col2:
-        st.plotly_chart(
-            heatmap_scores(mf, mf["Ticker"].tolist()),
-            use_container_width=True,
-        )
-
-    col3, col4 = st.columns(2)
-    with col3:
-        st.plotly_chart(
-            scatter_chart(
-                filtered,
-                "MomentumScore",
-                "QualityScore",
-                "Momentum vs Quality",
-                size_col="TotalScore",
-                hover_cols=["Ticker", "Name", "GrowthScore", "ValueScore"],
-            ),
-            use_container_width=True,
-        )
-    with col4:
-        st.plotly_chart(
-            scatter_chart(
-                filtered,
-                "GrowthScore",
-                "ValueScore",
-                "Growth vs Value",
-                size_col="TotalScore",
-                hover_cols=["Ticker", "Name"],
-            ),
-            use_container_width=True,
-        )
-
-    mf_cols = [
-        "Rank", "Ticker", "Name", "Sector",
-        "MomentumScore", "QualityScore", "GrowthScore",
-        "ValueScore", "DefensiveScore", "TotalScore"
-    ]
-    st.dataframe(mf[mf_cols], use_container_width=True, hide_index=True)
-
-# ---------------------------------------------------------
-# TAB 8: DETAIL CHART
-# ---------------------------------------------------------
-with tabs[7]:
-    st.subheader("Selected Stock Detail")
-    st.write("Price trend with MA50 and MA200.")
-
-    detail_row = filtered[filtered["Ticker"] == selected_detail_ticker].copy()
-
-    if detail_row.empty:
-        st.info("Selected ticker is filtered out. Change filters or choose another ticker.")
+    bt = backtest_trend(df["Close"], ma_short, ma_long, initial_capital)
+    if bt.empty:
+        st.warning("Not enough data for this strategy.")
     else:
-        c1, c2, c3, c4 = st.columns(4)
-        row = detail_row.iloc[0]
+        t_cagr, t_sharpe, t_mdd = equity_stats(bt["Equity"], annual_factor)
+        b_cagr, b_sharpe, b_mdd = equity_stats(bt["BuyHold_Equity"], annual_factor)
 
-        c1.metric("Ticker", row["Ticker"])
-        c2.metric("Price", fmt_num(row["Price"], 2))
-        c3.metric("12M Return", fmt_pct(row["Ret_12M"]))
-        c4.metric("Multi-Factor Rank", str(row["Rank"]))
+        a, b, c = st.columns(3)
+        a.metric("Trend CAGR", f"{t_cagr:.2%}" if pd.notna(t_cagr) else "N/A")
+        b.metric("Trend Sharpe", f"{t_sharpe:.2f}" if pd.notna(t_sharpe) else "N/A")
+        c.metric("Trend MDD", f"{t_mdd:.2%}" if pd.notna(t_mdd) else "N/A")
 
-        st.plotly_chart(plot_selected_stock(price_data, selected_detail_ticker), use_container_width=True)
+        buy_points = bt[bt["Signal_Change"] == 1]
+        sell_points = bt[bt["Signal_Change"] == -1]
 
-        detail_cols = [
-            "Ticker", "Name", "Sector", "Industry",
-            "Price", "Ret_1M", "Ret_3M", "Ret_6M", "Ret_12M",
-            "RS_vs_QQQ_6M", "RS_vs_QQQ_12M",
-            "ROE", "OperatingMargin", "GrossMargin",
-            "RevenueGrowth", "EpsGrowth",
-            "ForwardPE", "PegRatio",
-            "Volatility_1Y", "MDD_1Y", "Beta",
-            "MomentumScore", "QualityScore", "GrowthScore", "ValueScore", "TotalScore"
-        ]
-        detail_cols = [c for c in detail_cols if c in detail_row.columns]
-        st.dataframe(detail_row[detail_cols], use_container_width=True, hide_index=True)
+        fig = make_subplots(
+            rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
+            row_heights=[0.55, 0.45],
+            subplot_titles=("Price and MA Signals", "Equity Curve")
+        )
+        fig.add_trace(go.Scatter(x=bt.index, y=bt["Close"], mode="lines", name="Close"), row=1, col=1)
+        fig.add_trace(go.Scatter(x=bt.index, y=bt["MA_Short"], mode="lines", name=f"MA {ma_short}"), row=1, col=1)
+        fig.add_trace(go.Scatter(x=bt.index, y=bt["MA_Long"], mode="lines", name=f"MA {ma_long}"), row=1, col=1)
+
+        if show_signals:
+            fig.add_trace(go.Scatter(x=buy_points.index, y=buy_points["Close"], mode="markers", name="Buy",
+                                     marker=dict(symbol="triangle-up", size=11)), row=1, col=1)
+            fig.add_trace(go.Scatter(x=sell_points.index, y=sell_points["Close"], mode="markers", name="Sell",
+                                     marker=dict(symbol="triangle-down", size=11)), row=1, col=1)
+
+        fig.add_trace(go.Scatter(x=bt.index, y=bt["BuyHold_Equity"], mode="lines", name="Buy & Hold"), row=2, col=1)
+        fig.add_trace(go.Scatter(x=bt.index, y=bt["Equity"], mode="lines", name="Trend Strategy"), row=2, col=1)
+        fig.update_layout(height=840)
+        st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
-# 11) FOOTER
+# 2. Mean Reversion
 # =========================================================
-st.markdown("---")
-st.caption(
-    "Notes: This app uses a static Nasdaq-100 list and Yahoo Finance data. "
-    "Fundamental fields may be missing for some tickers, and scores are relative within the current filtered universe."
-)
+with tabs[2]:
+    st.subheader("Mean Reversion")
+
+    st.markdown(
+        """
+**핵심 개념**  
+가격이 평균에서 너무 멀어지면 다시 평균 쪽으로 되돌아올 가능성을 이용합니다.
+
+**간단 룰**  
+- 진입: Z-score < -threshold  
+- 청산: 가격이 rolling mean 이상 회복
+"""
+    )
+
+    bt = backtest_mean_reversion(df["Close"], mr_window, mr_z, initial_capital)
+    if bt.empty:
+        st.warning("Not enough data for this strategy.")
+    else:
+        mr_cagr, mr_sharpe, mr_mdd = equity_stats(bt["Equity"], annual_factor)
+        a, b, c = st.columns(3)
+        a.metric("MR CAGR", f"{mr_cagr:.2%}" if pd.notna(mr_cagr) else "N/A")
+        b.metric("MR Sharpe", f"{mr_sharpe:.2f}" if pd.notna(mr_sharpe) else "N/A")
+        c.metric("MR MDD", f"{mr_mdd:.2%}" if pd.notna(mr_mdd) else "N/A")
+
+        buy_points = bt[bt["Signal_Change"] == 1]
+        sell_points = bt[bt["Signal_Change"] == -1]
+
+        fig = make_subplots(
+            rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.06,
+            row_heights=[0.42, 0.23, 0.35],
+            subplot_titles=("Price vs Mean", "Z-Score", "Equity Curve")
+        )
+        fig.add_trace(go.Scatter(x=bt.index, y=bt["Close"], mode="lines", name="Close"), row=1, col=1)
+        fig.add_trace(go.Scatter(x=bt.index, y=bt["Mean"], mode="lines", name="Rolling Mean"), row=1, col=1)
+
+        if show_signals:
+            fig.add_trace(go.Scatter(x=buy_points.index, y=buy_points["Close"], mode="markers", name="Buy",
+                                     marker=dict(symbol="triangle-up", size=11)), row=1, col=1)
+            fig.add_trace(go.Scatter(x=sell_points.index, y=sell_points["Close"], mode="markers", name="Exit",
+                                     marker=dict(symbol="triangle-down", size=11)), row=1, col=1)
+
+        fig.add_trace(go.Scatter(x=bt.index, y=bt["Z"], mode="lines", name="Z-Score"), row=2, col=1)
+        fig.add_hline(y=-mr_z, row=2, col=1, line_dash="dash")
+        fig.add_hline(y=0, row=2, col=1, line_dash="dot")
+        fig.add_trace(go.Scatter(x=bt.index, y=bt["BuyHold_Equity"], mode="lines", name="Buy & Hold"), row=3, col=1)
+        fig.add_trace(go.Scatter(x=bt.index, y=bt["Equity"], mode="lines", name="Mean Reversion"), row=3, col=1)
+        fig.update_layout(height=930)
+        st.plotly_chart(fig, use_container_width=True)
+
+# =========================================================
+# 3. Momentum
+# =========================================================
+with tabs[3]:
+    st.subheader("Momentum")
+
+    st.markdown(
+        """
+**핵심 개념**  
+최근 강했던 자산이 당분간 더 강할 수 있다는 규칙입니다.
+
+**간단 룰**  
+- 진입: lookback momentum > 0  
+- 이탈: momentum <= 0
+"""
+    )
+
+    bt = backtest_momentum(df["Close"], mom_lookback, initial_capital)
+    if bt.empty:
+        st.warning("Not enough data for this strategy.")
+    else:
+        m_cagr, m_sharpe, m_mdd = equity_stats(bt["Equity"], annual_factor)
+        a, b, c = st.columns(3)
+        a.metric("Momentum CAGR", f"{m_cagr:.2%}" if pd.notna(m_cagr) else "N/A")
+        b.metric("Momentum Sharpe", f"{m_sharpe:.2f}" if pd.notna(m_sharpe) else "N/A")
+        c.metric("Momentum MDD", f"{m_mdd:.2%}" if pd.notna(m_mdd) else "N/A")
+
+        fig = make_subplots(
+            rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
+            row_heights=[0.5, 0.5],
+            subplot_titles=("Price and Momentum", "Equity Curve")
+        )
+        fig.add_trace(go.Scatter(x=bt.index, y=bt["Close"], mode="lines", name="Close"), row=1, col=1)
+        fig.add_trace(go.Scatter(x=bt.index, y=bt["Momentum"], mode="lines", name="Momentum"), row=1, col=1)
+        fig.add_hline(y=0, row=1, col=1, line_dash="dash")
+        fig.add_trace(go.Scatter(x=bt.index, y=bt["BuyHold_Equity"], mode="lines", name="Buy & Hold"), row=2, col=1)
+        fig.add_trace(go.Scatter(x=bt.index, y=bt["Equity"], mode="lines", name="Momentum Strategy"), row=2, col=1)
+        fig.update_layout(height=800)
+        st.plotly_chart(fig, use_container_width=True)
+
+# =========================================================
+# 4. Relative Momentum / Rotation
+# =========================================================
+with tabs[4]:
+    st.subheader("Relative Momentum / Asset Rotation")
+
+    st.markdown(
+        """
+**핵심 개념**  
+여러 자산 중 최근 가장 강한 자산으로 이동하는 방식입니다.  
+예: QQQ / SPY / TLT / GLD 중 최근 n기간 수익률 1위만 보유
+"""
+    )
+
+    if cmp_df.empty or cmp_df.shape[1] < 2:
+        st.warning("Need at least 2 assets for relative momentum.")
+    else:
+        momentum_df, rot = build_rotation_strategy(cmp_df, mom_lookback, initial_capital)
+
+        normalized = cmp_df.copy()
+        for col in normalized.columns:
+            first_valid = normalized[col].dropna()
+            if not first_valid.empty:
+                normalized[col] = 100 * normalized[col] / first_valid.iloc[0]
+
+        fig = go.Figure()
+        for col in normalized.columns:
+            fig.add_trace(go.Scatter(x=normalized.index, y=normalized[col], mode="lines", name=col))
+        fig.update_layout(height=450, title="Normalized Performance")
+        st.plotly_chart(fig, use_container_width=True)
+
+        if not rot.empty:
+            rot_cagr, rot_sharpe, rot_mdd = equity_stats(rot["Rotation_Equity"], annual_factor)
+            st.metric("Rotation CAGR", f"{rot_cagr:.2%}" if pd.notna(rot_cagr) else "N/A")
+
+            fig2 = go.Figure()
+            fig2.add_trace(go.Scatter(x=rot.index, y=rot["Rotation_Equity"], mode="lines", name="Rotation Equity"))
+            fig2.update_layout(height=420, title="Rotation Strategy Equity")
+            st.plotly_chart(fig2, use_container_width=True)
+
+            last_leaders = rot["Leader"].dropna().tail(20).to_frame(name="Selected Asset")
+            st.subheader("Recent Rotation Decisions")
+            st.dataframe(last_leaders, use_container_width=True)
+
+# =========================================================
+# 5. Volatility Targeting
+# =========================================================
+with tabs[5]:
+    st.subheader("Volatility Targeting")
+
+    st.markdown(
+        """
+**핵심 개념**  
+포트폴리오 변동성을 일정 수준에 맞추려고 포지션 크기를 조절합니다.
+
+**간단 룰**  
+- 실현 변동성이 높아지면 비중 감소
+- 실현 변동성이 낮아지면 비중 증가
+"""
+    )
+
+    bt = backtest_vol_target(df["Close"], vol_window, target_vol, annual_factor, initial_capital)
+    if bt.empty:
+        st.warning("Not enough data for this strategy.")
+    else:
+        v_cagr, v_sharpe, v_mdd = equity_stats(bt["Equity"], annual_factor)
+        a, b, c = st.columns(3)
+        a.metric("Vol Target CAGR", f"{v_cagr:.2%}" if pd.notna(v_cagr) else "N/A")
+        b.metric("Vol Target Sharpe", f"{v_sharpe:.2f}" if pd.notna(v_sharpe) else "N/A")
+        c.metric("Vol Target MDD", f"{v_mdd:.2%}" if pd.notna(v_mdd) else "N/A")
+
+        fig = make_subplots(
+            rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.06,
+            row_heights=[0.34, 0.28, 0.38],
+            subplot_titles=("Price", "Realized Vol and Leverage", "Equity Curve")
+        )
+        fig.add_trace(go.Scatter(x=bt.index, y=bt["Close"], mode="lines", name="Close"), row=1, col=1)
+        fig.add_trace(go.Scatter(x=bt.index, y=bt["Realized_Vol"], mode="lines", name="Realized Vol"), row=2, col=1)
+        fig.add_trace(go.Scatter(x=bt.index, y=bt["Leverage"], mode="lines", name="Leverage"), row=2, col=1)
+        fig.add_trace(go.Scatter(x=bt.index, y=bt["BuyHold_Equity"], mode="lines", name="Buy & Hold"), row=3, col=1)
+        fig.add_trace(go.Scatter(x=bt.index, y=bt["Equity"], mode="lines", name="Vol Target"), row=3, col=1)
+        fig.update_layout(height=900)
+        st.plotly_chart(fig, use_container_width=True)
+
+# =========================================================
+# 6. Risk Parity
+# =========================================================
+with tabs[6]:
+    st.subheader("Risk Parity")
+
+    st.markdown(
+        """
+**핵심 개념**  
+돈 비중이 아니라 위험 기여도를 비슷하게 맞추는 방식입니다.
+
+예를 들어 변동성이 높은 자산 비중은 줄이고, 낮은 자산 비중은 늘립니다.
+"""
+    )
+
+    if cmp_df.empty or cmp_df.shape[1] < 2:
+        st.warning("Need multiple assets for risk parity.")
+    else:
+        weights, equity = build_risk_parity(cmp_df, vol_window, annual_factor, initial_capital)
+
+        if equity.empty:
+            st.warning("Could not build risk parity result.")
+        else:
+            rp_cagr, rp_sharpe, rp_mdd = equity_stats(equity["Risk_Parity"], annual_factor)
+            ew_cagr, ew_sharpe, ew_mdd = equity_stats(equity["Equal_Weight"], annual_factor)
+
+            a, b, c = st.columns(3)
+            a.metric("Risk Parity CAGR", f"{rp_cagr:.2%}" if pd.notna(rp_cagr) else "N/A")
+            b.metric("Risk Parity Sharpe", f"{rp_sharpe:.2f}" if pd.notna(rp_sharpe) else "N/A")
+            c.metric("Risk Parity MDD", f"{rp_mdd:.2%}" if pd.notna(rp_mdd) else "N/A")
+
+            fig = make_subplots(
+                rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
+                row_heights=[0.4, 0.6],
+                subplot_titles=("Risk Parity Weights", "Equity Curve")
+            )
+
+            for col in weights.columns:
+                fig.add_trace(go.Scatter(x=weights.index, y=weights[col], mode="lines", name=f"W_{col}"), row=1, col=1)
+
+            fig.add_trace(go.Scatter(x=equity.index, y=equity["Equal_Weight"], mode="lines", name="Equal Weight"), row=2, col=1)
+            fig.add_trace(go.Scatter(x=equity.index, y=equity["Risk_Parity"], mode="lines", name="Risk Parity"), row=2, col=1)
+            fig.update_layout(height=860)
+            fig.update_yaxes(tickformat=".0%", row=1, col=1)
+            st.plotly_chart(fig, use_container_width=True)
+
+# =========================================================
+# 7. Drawdown Buying
+# =========================================================
+with tabs[7]:
+    st.subheader("Drawdown Buying Guide")
+
+    st.markdown(
+        """
+**핵심 개념**  
+최고점 대비 낙폭 구간별로 분할 진입하는 규칙입니다.
+
+예시
+- 0% ~ -5%: 관찰
+- -5% ~ -10%: 1차
+- -10% ~ -15%: 2차
+- -15% ~ -20%: 3차
+- -20% 이하: 고위험/고기회
+"""
+    )
+
+    latest_dd = latest["Drawdown"]
+
+    guide_rows = [
+        {"Zone": "0% ~ -5%", "Meaning": "Near highs", "Action": "Watch / small entry"},
+        {"Zone": "-5% ~ -10%", "Meaning": "Normal pullback", "Action": "First phased buy"},
+        {"Zone": "-10% ~ -15%", "Meaning": "Moderate correction", "Action": "Second phased buy"},
+        {"Zone": "-15% ~ -20%", "Meaning": "Deep correction", "Action": "Aggressive phased buy"},
+        {"Zone": "< -20%", "Meaning": "Severe drawdown", "Action": "Opportunity with caution"},
+    ]
+    st.dataframe(pd.DataFrame(guide_rows), use_container_width=True)
+
+    if pd.notna(latest_dd):
+        if latest_dd > -0.05:
+            st.info("Current state: Near highs")
+        elif latest_dd > -0.10:
+            st.info("Current state: Normal pullback")
+        elif latest_dd > -0.15:
+            st.warning("Current state: Moderate correction")
+        elif latest_dd > -0.20:
+            st.warning("Current state: Deep correction")
+        else:
+            st.error("Current state: Severe drawdown")
+
+    fig = make_subplots(
+        rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
+        row_heights=[0.5, 0.5],
+        subplot_titles=("Price and ATH", "Drawdown Zones")
+    )
+    fig.add_trace(go.Scatter(x=df.index, y=df["Close"], mode="lines", name="Close"), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df.index, y=df["ATH"], mode="lines", name="ATH"), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df.index, y=df["Drawdown"], mode="lines", fill="tozeroy", name="Drawdown"), row=2, col=1)
+    fig.add_hline(y=-0.05, row=2, col=1, line_dash="dash")
+    fig.add_hline(y=-0.10, row=2, col=1, line_dash="dash")
+    fig.add_hline(y=-0.15, row=2, col=1, line_dash="dash")
+    fig.add_hline(y=-0.20, row=2, col=1, line_dash="dash")
+    fig.update_layout(height=840)
+    fig.update_yaxes(tickformat=".0%", row=2, col=1)
+    st.plotly_chart(fig, use_container_width=True)
+
+# =========================================================
+# 8. Multi-Factor
+# =========================================================
+with tabs[8]:
+    st.subheader("Multi-Factor Score")
+
+    st.markdown(
+        """
+**핵심 개념**  
+한 가지 신호만 보지 않고, 여러 요인을 합쳐 점수화합니다.
+
+이 예시에서는 아래 4개를 사용합니다.
+- Momentum
+- Low Volatility
+- Trend
+- Quality Proxy
+"""
+    )
+
+    score, reasons, fac_df = latest_factor_score(df, mom_lookback, vol_window)
+
+    a, b = st.columns([1, 2])
+    with a:
+        st.metric("Factor Score", f"{score} / 4")
+    with b:
+        for r in reasons:
+            st.write(f"- {r}")
+
+    fac_df["Momentum_Rank"] = fac_df["Momentum"].rank(pct=True)
+    fac_df["LowVol_Rank"] = (1 - fac_df["Volatility"].rank(pct=True))
+    fac_df["Trend_Flag"] = np.where(fac_df["MA50"] > fac_df["MA200"], 1.0, 0.0)
+    fac_df["Quality_Rank"] = fac_df["Quality_Proxy"].rank(pct=True)
+
+    fac_df["Composite_Score"] = (
+        fac_df["Momentum_Rank"].fillna(0) +
+        fac_df["LowVol_Rank"].fillna(0) +
+        fac_df["Trend_Flag"].fillna(0) +
+        fac_df["Quality_Rank"].fillna(0)
+    ) / 4.0
+
+    fig = make_subplots(
+        rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
+        row_heights=[0.45, 0.55],
+        subplot_titles=("Price", "Composite Factor Score")
+    )
+    fig.add_trace(go.Scatter(x=fac_df.index, y=fac_df["Close"], mode="lines", name="Close"), row=1, col=1)
+    fig.add_trace(go.Scatter(x=fac_df.index, y=fac_df["Composite_Score"], mode="lines", name="Composite Score"), row=2, col=1)
+    fig.update_layout(height=760)
+    st.plotly_chart(fig, use_container_width=True)
+
+# =========================================================
+# 9. Strategy Summary
+# =========================================================
+with tabs[9]:
+    st.subheader("Strategy Summary")
+
+    summary_rows = []
+
+    bh = backtest_buy_hold(df["Close"], initial_capital)
+    if not bh.empty:
+        cagr_bh, sharpe_bh, mdd_bh = equity_stats(bh, annual_factor)
+        summary_rows.append({
+            "Strategy": "Buy & Hold",
+            "Final Value": bh.iloc[-1],
+            "CAGR": cagr_bh,
+            "Sharpe": sharpe_bh,
+            "MDD": mdd_bh
+        })
+
+    tf = backtest_trend(df["Close"], ma_short, ma_long, initial_capital)
+    if not tf.empty:
+        cagr_tf, sharpe_tf, mdd_tf = equity_stats(tf["Equity"], annual_factor)
+        summary_rows.append({
+            "Strategy": "Trend Following",
+            "Final Value": tf["Equity"].iloc[-1],
+            "CAGR": cagr_tf,
+            "Sharpe": sharpe_tf,
+            "MDD": mdd_tf
+        })
+
+    mr = backtest_mean_reversion(df["Close"], mr_window, mr_z, initial_capital)
+    if not mr.empty:
+        cagr_mr, sharpe_mr, mdd_mr = equity_stats(mr["Equity"], annual_factor)
+        summary_rows.append({
+            "Strategy": "Mean Reversion",
+            "Final Value": mr["Equity"].iloc[-1],
+            "CAGR": cagr_mr,
+            "Sharpe": sharpe_mr,
+            "MDD": mdd_mr
+        })
+
+    mom = backtest_momentum(df["Close"], mom_lookback, initial_capital)
+    if not mom.empty:
+        cagr_mom, sharpe_mom, mdd_mom = equity_stats(mom["Equity"], annual_factor)
+        summary_rows.append({
+            "Strategy": "Momentum",
+            "Final Value": mom["Equity"].iloc[-1],
+            "CAGR": cagr_mom,
+            "Sharpe": sharpe_mom,
+            "MDD": mdd_mom
+        })
+
+    vol_bt = backtest_vol_target(df["Close"], vol_window, target_vol, annual_factor, initial_capital)
+    if not vol_bt.empty:
+        cagr_v, sharpe_v, mdd_v = equity_stats(vol_bt["Equity"], annual_factor)
+        summary_rows.append({
+            "Strategy": "Volatility Targeting",
+            "Final Value": vol_bt["Equity"].iloc[-1],
+            "CAGR": cagr_v,
+            "Sharpe": sharpe_v,
+            "MDD": mdd_v
+        })
+
+    if not cmp_df.empty and cmp_df.shape[1] >= 2:
+        _, rot = build_rotation_strategy(cmp_df, mom_lookback, initial_capital)
+        if not rot.empty:
+            cagr_rot, sharpe_rot, mdd_rot = equity_stats(rot["Rotation_Equity"], annual_factor)
+            summary_rows.append({
+                "Strategy": "Relative Momentum Rotation",
+                "Final Value": rot["Rotation_Equity"].iloc[-1],
+                "CAGR": cagr_rot,
+                "Sharpe": sharpe_rot,
+                "MDD": mdd_rot
+            })
+
+        _, rp_eq = build_risk_parity(cmp_df, vol_window, annual_factor, initial_capital)
+        if not rp_eq.empty:
+            cagr_rp, sharpe_rp, mdd_rp = equity_stats(rp_eq["Risk_Parity"], annual_factor)
+            summary_rows.append({
+                "Strategy": "Risk Parity",
+                "Final Value": rp_eq["Risk_Parity"].iloc[-1],
+                "CAGR": cagr_rp,
+                "Sharpe": sharpe_rp,
+                "MDD": mdd_rp
+            })
+
+    summary_df = pd.DataFrame(summary_rows)
+
+    if summary_df.empty:
+        st.warning("No summary results available.")
+    else:
+        st.dataframe(
+            summary_df.style.format({
+                "Final Value": "{:,.0f}",
+                "CAGR": "{:.2%}",
+                "Sharpe": "{:.2f}",
+                "MDD": "{:.2%}"
+            }),
+            use_container_width=True
+        )
+
+        fig = go.Figure()
+
+        if not bh.empty:
+            fig.add_trace(go.Scatter(x=bh.index, y=bh, mode="lines", name="Buy & Hold"))
+        if not tf.empty:
+            fig.add_trace(go.Scatter(x=tf.index, y=tf["Equity"], mode="lines", name="Trend"))
+        if not mr.empty:
+            fig.add_trace(go.Scatter(x=mr.index, y=mr["Equity"], mode="lines", name="Mean Reversion"))
+        if not mom.empty:
+            fig.add_trace(go.Scatter(x=mom.index, y=mom["Equity"], mode="lines", name="Momentum"))
+        if not vol_bt.empty:
+            fig.add_trace(go.Scatter(x=vol_bt.index, y=vol_bt["Equity"], mode="lines", name="Vol Target"))
+        if not cmp_df.empty and cmp_df.shape[1] >= 2:
+            _, rot = build_rotation_strategy(cmp_df, mom_lookback, initial_capital)
+            if not rot.empty:
+                fig.add_trace(go.Scatter(x=rot.index, y=rot["Rotation_Equity"], mode="lines", name="Rotation"))
+            _, rp_eq = build_risk_parity(cmp_df, vol_window, annual_factor, initial_capital)
+            if not rp_eq.empty:
+                fig.add_trace(go.Scatter(x=rp_eq.index, y=rp_eq["Risk_Parity"], mode="lines", name="Risk Parity"))
+
+        fig.update_layout(height=520, title="Equity Comparison Across Strategies")
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown(
+            """
+**이 탭에서 배우는 것**
+- 같은 자산이라도 전략에 따라 수익률과 낙폭이 다름
+- 높은 CAGR만 볼 것이 아니라 MDD와 Sharpe도 함께 봐야 함
+- 실전에서는 한 전략보다 조합이 더 중요함
+"""
+        )
+
+# =========================================================
+# Footer
+# =========================================================
+st.caption(f"Last app refresh: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
